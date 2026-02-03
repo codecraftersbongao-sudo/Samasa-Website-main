@@ -69,7 +69,11 @@ type ProjectWithMedia = Project & {
 };
 
 export interface LegislativeHubProps {
-  user: User;
+  /**
+   * ✅ Optional so LandingPage can embed without auth user.
+   * If omitted, this component will use a safe "Public Viewer" user.
+   */
+  user?: User;
 
   /**
    * Optional override permission:
@@ -252,8 +256,16 @@ const TAB_META: Array<{
   },
 ];
 
+const FALLBACK_PUBLIC_USER: User = {
+  id: "public-guest",
+  name: "Public Viewer",
+  email: "guest@samasa.edu",
+  role: UserRole.STUDENT,
+  department: (("SAMASA" as any) as any),
+} as any;
+
 const LegislativeHub: React.FC<LegislativeHubProps> = ({
-  user,
+  user = FALLBACK_PUBLIC_USER,
   isEditable,
   hideHeader = false,
   initialTab = "RESOURCES",
@@ -283,12 +295,10 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
   const [createType, setCreateType] = useState<CreateType>("PROPOSAL");
   const [savingCreate, setSavingCreate] = useState(false);
 
-  const [selectedProposal, setSelectedProposal] = useState<ProposalWithMedia | null>(
-    null
-  );
-  const [selectedProject, setSelectedProject] = useState<ProjectWithMedia | null>(
-    null
-  );
+  const [selectedProposal, setSelectedProposal] =
+    useState<ProposalWithMedia | null>(null);
+  const [selectedProject, setSelectedProject] =
+    useState<ProjectWithMedia | null>(null);
 
   // ==========
   // CREATE: Proposal form
@@ -338,7 +348,9 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
 
   const [ppPdfName, setPpPdfName] = useState("");
   const [ppPdfUrl, setPpPdfUrl] = useState("");
-  const [ppPdfPublicId, setPpPdfPublicId] = useState<string | undefined>(undefined);
+  const [ppPdfPublicId, setPpPdfPublicId] = useState<string | undefined>(
+    undefined
+  );
   const [ppPdfFile, setPpPdfFile] = useState<File | null>(null);
 
   // ==========
@@ -364,7 +376,9 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
 
   const [epPdfName, setEpPdfName] = useState<string>("");
   const [epPdfUrl, setEpPdfUrl] = useState<string>("");
-  const [epPdfPublicId, setEpPdfPublicId] = useState<string | undefined>(undefined);
+  const [epPdfPublicId, setEpPdfPublicId] = useState<string | undefined>(
+    undefined
+  );
   const [epPdfFile, setEpPdfFile] = useState<File | null>(null);
 
   // ==========
@@ -926,10 +940,7 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
       } as any);
 
       if (ppPdfFile) {
-        const up = await uploadToCloudinary(
-          ppPdfFile,
-          `${BASE_FOLDER}/proposals/${id}`
-        );
+        const up = await uploadToCloudinary(ppPdfFile, `${BASE_FOLDER}/proposals/${id}`);
 
         await updateDoc(doc(db, "proposals", id), {
           pdfName: ppPdfFile.name,
@@ -1525,16 +1536,16 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
       )}
 
       {/* ==============================
-          CREATE MODAL
+          CREATE MODAL (FIXED: scrollable)
       ============================== */}
       {showCreateModal && (
         <div
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center px-4 py-6"
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-start justify-center px-4 py-6 overflow-y-auto"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) closeCreate();
           }}
         >
-          <div className="w-full max-w-3xl bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden">
+          <div className="w-full max-w-3xl bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
             <div className="px-10 py-8 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-2">
@@ -1554,467 +1565,469 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="px-10 py-8 space-y-8">
-              {/* Type switch */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  onClick={() => setCreateType("PROPOSAL")}
-                  disabled={!canCreateProposal}
-                  className={[
-                    "flex-1 px-6 py-3 rounded-2xl border-2 text-[10px] font-black uppercase tracking-widest transition-all",
-                    createType === "PROPOSAL"
-                      ? "bg-samasa-blue text-white border-samasa-blue shadow-lg"
-                      : "bg-white text-slate-500 border-slate-200 hover:border-samasa-blue/40",
-                    !canCreateProposal ? "opacity-40 cursor-not-allowed" : "",
-                  ].join(" ")}
-                >
-                  Proposal
-                </button>
+            <div className="flex-1 overflow-y-auto">
+              <form onSubmit={handleCreateSubmit} className="px-10 py-8 space-y-8">
+                {/* Type switch */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCreateType("PROPOSAL")}
+                    disabled={!canCreateProposal}
+                    className={[
+                      "flex-1 px-6 py-3 rounded-2xl border-2 text-[10px] font-black uppercase tracking-widest transition-all",
+                      createType === "PROPOSAL"
+                        ? "bg-samasa-blue text-white border-samasa-blue shadow-lg"
+                        : "bg-white text-slate-500 border-slate-200 hover:border-samasa-blue/40",
+                      !canCreateProposal ? "opacity-40 cursor-not-allowed" : "",
+                    ].join(" ")}
+                  >
+                    Proposal
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setCreateType("PROJECT")}
-                  disabled={!canCreateProject}
-                  className={[
-                    "flex-1 px-6 py-3 rounded-2xl border-2 text-[10px] font-black uppercase tracking-widest transition-all",
-                    createType === "PROJECT"
-                      ? "bg-samasa-black text-samasa-yellow border-samasa-black shadow-lg"
-                      : "bg-white text-slate-500 border-slate-200 hover:border-samasa-blue/40",
-                    !canCreateProject ? "opacity-40 cursor-not-allowed" : "",
-                  ].join(" ")}
-                >
-                  Project
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setCreateType("PROJECT")}
+                    disabled={!canCreateProject}
+                    className={[
+                      "flex-1 px-6 py-3 rounded-2xl border-2 text-[10px] font-black uppercase tracking-widest transition-all",
+                      createType === "PROJECT"
+                        ? "bg-samasa-black text-samasa-yellow border-samasa-black shadow-lg"
+                        : "bg-white text-slate-500 border-slate-200 hover:border-samasa-blue/40",
+                      !canCreateProject ? "opacity-40 cursor-not-allowed" : "",
+                    ].join(" ")}
+                  >
+                    Project
+                  </button>
+                </div>
 
-              {createType === "PROPOSAL" ? (
-                <>
-                  {/* Title */}
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      Title
-                    </label>
-                    <input
-                      value={pTitle}
-                      onChange={(e) => setPTitle(e.target.value)}
-                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      placeholder="Enter proposal title..."
-                      required
-                    />
-                  </div>
-
-                  {/* Category */}
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      Category
-                    </label>
-                    <select
-                      value={String(pCategory)}
-                      onChange={(e) => setPCategory(e.target.value as any)}
-                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                    >
-                      <option value={ProposalCategory.RESOURCES}>RESOURCES</option>
-                      <option value={ProposalCategory.PROGRAMS}>PROGRAMS</option>
-                      <option value={ProposalCategory.POLICY}>POLICY</option>
-                    </select>
-                  </div>
-
-                  {/* Proponent */}
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      Proponent
-                    </label>
-                    <input
-                      value={pProponent}
-                      onChange={(e) => setPProponent(e.target.value)}
-                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      placeholder="Your name..."
-                    />
-                  </div>
-
-                  {/* Narrative */}
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      Narrative / Description
-                    </label>
-                    <textarea
-                      value={pNarrative}
-                      onChange={(e) => setPNarrative(e.target.value)}
-                      className="w-full min-h-[140px] px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      placeholder="Write the proposal narrative..."
-                      required
-                    />
-                  </div>
-
-                  {/* PDF */}
-                  <div className="rounded-2xl border border-slate-200 p-6">
-                    <div className="flex items-center justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-samasa-blue" />
-                        <div>
-                          <div className="text-sm font-black text-samasa-black">
-                            Attach PDF (optional)
-                          </div>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Upload a PDF document
-                          </div>
-                        </div>
-                      </div>
-
-                      <input
-                        ref={proposalPdfInputRef}
-                        type="file"
-                        accept="application/pdf"
-                        className="hidden"
-                        onChange={(e) => onProposalPdfPick(e.target.files?.[0] || null)}
-                      />
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => proposalPdfInputRef.current?.click()}
-                          className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <Upload className="w-4 h-4" /> Choose
-                          </span>
-                        </button>
-
-                        {(pPdfUrl || pPdfName) && (
-                          <button
-                            type="button"
-                            onClick={removeProposalPdf}
-                            className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-samasa-red transition-all"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {(pPdfUrl || pPdfName) ? (
-                      <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-                        <div className="flex items-center gap-3 text-slate-600">
-                          <FileText className="w-4 h-4" />
-                          <span className="text-xs font-bold truncate max-w-[60vw] sm:max-w-[420px]">
-                            {pPdfName || "Selected PDF"}
-                          </span>
-                        </div>
-
-                        {pPdfUrl && (
-                          <a
-                            href={pPdfUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-4 py-2 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
-                          >
-                            Preview
-                          </a>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                        No PDF attached.
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Title */}
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      Title
-                    </label>
-                    <input
-                      value={prTitle}
-                      onChange={(e) => setPrTitle(e.target.value)}
-                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      placeholder="Enter project title..."
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Timeline */}
+                {createType === "PROPOSAL" ? (
+                  <>
+                    {/* Title */}
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Timeline
+                        Title
                       </label>
                       <input
-                        value={prTimeline}
-                        onChange={(e) => setPrTimeline(e.target.value)}
+                        value={pTitle}
+                        onChange={(e) => setPTitle(e.target.value)}
                         className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                        placeholder="e.g. Feb–Jun 2026"
+                        placeholder="Enter proposal title..."
                         required
                       />
                     </div>
 
-                    {/* In charge */}
+                    {/* Category */}
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        In Charge
-                      </label>
-                      <input
-                        value={prInCharge}
-                        onChange={(e) => setPrInCharge(e.target.value)}
-                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                        placeholder="Name/Office"
-                        required
-                      />
-                    </div>
-
-                    {/* Status */}
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Status
+                        Category
                       </label>
                       <select
-                        value={String(prStatus)}
-                        onChange={(e) => setPrStatus(e.target.value as any)}
+                        value={String(pCategory)}
+                        onChange={(e) => setPCategory(e.target.value as any)}
                         className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
                       >
-                        <option value={ProjectStatus.PLANNED}>PLANNED</option>
-                        <option value={ProjectStatus.ONGOING}>ONGOING</option>
-                        <option value={ProjectStatus.COMPLETED}>COMPLETED</option>
+                        <option value={ProposalCategory.RESOURCES}>RESOURCES</option>
+                        <option value={ProposalCategory.PROGRAMS}>PROGRAMS</option>
+                        <option value={ProposalCategory.POLICY}>POLICY</option>
                       </select>
                     </div>
-                  </div>
 
-                  {/* Description */}
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      Description
-                    </label>
-                    <textarea
-                      value={prDesc}
-                      onChange={(e) => setPrDesc(e.target.value)}
-                      className="w-full min-h-[140px] px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      placeholder="Describe the project..."
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Budget */}
+                    {/* Proponent */}
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Budget Allocated
+                        Proponent
                       </label>
                       <input
-                        value={String(prBudget)}
-                        onChange={(e) => setPrBudget(safeNum(e.target.value))}
-                        type="number"
-                        min={0}
+                        value={pProponent}
+                        onChange={(e) => setPProponent(e.target.value)}
                         className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                        placeholder="0"
+                        placeholder="Your name..."
                       />
                     </div>
 
-                    {/* Spent */}
+                    {/* Narrative */}
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Spent Amount
+                        Narrative / Description
                       </label>
-                      <input
-                        value={String(prSpent)}
-                        onChange={(e) => setPrSpent(safeNum(e.target.value))}
-                        type="number"
-                        min={0}
-                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                        placeholder="0"
+                      <textarea
+                        value={pNarrative}
+                        onChange={(e) => setPNarrative(e.target.value)}
+                        className="w-full min-h-[140px] px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                        placeholder="Write the proposal narrative..."
+                        required
                       />
                     </div>
 
-                    {/* Objectives */}
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Objectives (comma-separated)
-                      </label>
-                      <input
-                        value={prObjectives}
-                        onChange={(e) => setPrObjectives(e.target.value)}
-                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                        placeholder="e.g. Awareness, Training, Outreach"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Banner */}
-                  <div className="rounded-2xl border border-slate-200 p-6">
-                    <div className="flex items-center justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        <ImageIcon className="w-5 h-5 text-samasa-red" />
-                        <div>
-                          <div className="text-sm font-black text-samasa-black">
-                            Banner Image (optional)
+                    {/* PDF */}
+                    <div className="rounded-2xl border border-slate-200 p-6">
+                      <div className="flex items-center justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-samasa-blue" />
+                          <div>
+                            <div className="text-sm font-black text-samasa-black">
+                              Attach PDF (optional)
+                            </div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              Upload a PDF document
+                            </div>
                           </div>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            JPG/PNG/WEBP/GIF
-                          </div>
+                        </div>
+
+                        <input
+                          ref={proposalPdfInputRef}
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={(e) => onProposalPdfPick(e.target.files?.[0] || null)}
+                        />
+
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => proposalPdfInputRef.current?.click()}
+                            className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <Upload className="w-4 h-4" /> Choose
+                            </span>
+                          </button>
+
+                          {(pPdfUrl || pPdfName) && (
+                            <button
+                              type="button"
+                              onClick={removeProposalPdf}
+                              className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-samasa-red transition-all"
+                            >
+                              Remove
+                            </button>
+                          )}
                         </div>
                       </div>
 
+                      {(pPdfUrl || pPdfName) ? (
+                        <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                          <div className="flex items-center gap-3 text-slate-600">
+                            <FileText className="w-4 h-4" />
+                            <span className="text-xs font-bold truncate max-w-[60vw] sm:max-w-[420px]">
+                              {pPdfName || "Selected PDF"}
+                            </span>
+                          </div>
+
+                          {pPdfUrl && (
+                            <a
+                              href={pPdfUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-4 py-2 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
+                            >
+                              Preview
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                          No PDF attached.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Title */}
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                        Title
+                      </label>
                       <input
-                        ref={bannerInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => onBannerPick(e.target.files?.[0] || null)}
+                        value={prTitle}
+                        onChange={(e) => setPrTitle(e.target.value)}
+                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                        placeholder="Enter project title..."
+                        required
                       />
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => bannerInputRef.current?.click()}
-                          className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <Upload className="w-4 h-4" /> Choose
-                          </span>
-                        </button>
-
-                        {prBannerUrl && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              revokeIfBlob(lastBannerObjectUrlRef.current || undefined);
-                              lastBannerObjectUrlRef.current = null;
-                              setPrBannerUrl("");
-                              setPrBannerFile(null);
-                              if (bannerInputRef.current) bannerInputRef.current.value = "";
-                            }}
-                            className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-samasa-red transition-all"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
                     </div>
 
-                    {prBannerUrl ? (
-                      <div className="rounded-2xl overflow-hidden border border-slate-100 bg-slate-50">
-                        <img
-                          src={prBannerUrl}
-                          alt="Selected banner"
-                          className="w-full h-56 object-cover"
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* Timeline */}
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Timeline
+                        </label>
+                        <input
+                          value={prTimeline}
+                          onChange={(e) => setPrTimeline(e.target.value)}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                          placeholder="e.g. Feb–Jun 2026"
+                          required
                         />
                       </div>
-                    ) : (
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                        No banner selected.
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Project PDF */}
-                  <div className="rounded-2xl border border-slate-200 p-6">
-                    <div className="flex items-center justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-samasa-blue" />
-                        <div>
-                          <div className="text-sm font-black text-samasa-black">
-                            Attach PDF (optional)
-                          </div>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Upload a PDF document
-                          </div>
-                        </div>
+                      {/* In charge */}
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          In Charge
+                        </label>
+                        <input
+                          value={prInCharge}
+                          onChange={(e) => setPrInCharge(e.target.value)}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                          placeholder="Name/Office"
+                          required
+                        />
                       </div>
 
-                      <input
-                        ref={projectPdfInputRef}
-                        type="file"
-                        accept="application/pdf"
-                        className="hidden"
-                        onChange={(e) => onProjectPdfPick(e.target.files?.[0] || null)}
-                      />
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => projectPdfInputRef.current?.click()}
-                          className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
+                      {/* Status */}
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Status
+                        </label>
+                        <select
+                          value={String(prStatus)}
+                          onChange={(e) => setPrStatus(e.target.value as any)}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
                         >
-                          <span className="inline-flex items-center gap-2">
-                            <Upload className="w-4 h-4" /> Choose
-                          </span>
-                        </button>
-
-                        {(prPdfUrl || prPdfName) && (
-                          <button
-                            type="button"
-                            onClick={removeProjectPdf}
-                            className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-samasa-red transition-all"
-                          >
-                            Remove
-                          </button>
-                        )}
+                          <option value={ProjectStatus.PLANNED}>PLANNED</option>
+                          <option value={ProjectStatus.ONGOING}>ONGOING</option>
+                          <option value={ProjectStatus.COMPLETED}>COMPLETED</option>
+                        </select>
                       </div>
                     </div>
 
-                    {(prPdfUrl || prPdfName) ? (
-                      <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-                        <div className="flex items-center gap-3 text-slate-600">
-                          <FileText className="w-4 h-4" />
-                          <span className="text-xs font-bold truncate max-w-[60vw] sm:max-w-[420px]">
-                            {prPdfName || "Selected PDF"}
-                          </span>
+                    {/* Description */}
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                        Description
+                      </label>
+                      <textarea
+                        value={prDesc}
+                        onChange={(e) => setPrDesc(e.target.value)}
+                        className="w-full min-h-[140px] px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                        placeholder="Describe the project..."
+                        required
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* Budget */}
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Budget Allocated
+                        </label>
+                        <input
+                          value={String(prBudget)}
+                          onChange={(e) => setPrBudget(safeNum(e.target.value))}
+                          type="number"
+                          min={0}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      {/* Spent */}
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Spent Amount
+                        </label>
+                        <input
+                          value={String(prSpent)}
+                          onChange={(e) => setPrSpent(safeNum(e.target.value))}
+                          type="number"
+                          min={0}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      {/* Objectives */}
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Objectives (comma-separated)
+                        </label>
+                        <input
+                          value={prObjectives}
+                          onChange={(e) => setPrObjectives(e.target.value)}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                          placeholder="e.g. Awareness, Training, Outreach"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Banner */}
+                    <div className="rounded-2xl border border-slate-200 p-6">
+                      <div className="flex items-center justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-3">
+                          <ImageIcon className="w-5 h-5 text-samasa-red" />
+                          <div>
+                            <div className="text-sm font-black text-samasa-black">
+                              Banner Image (optional)
+                            </div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              JPG/PNG/WEBP/GIF
+                            </div>
+                          </div>
                         </div>
 
-                        {prPdfUrl && (
-                          <a
-                            href={prPdfUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-4 py-2 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
-                          >
-                            Preview
-                          </a>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                        No PDF attached.
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
+                        <input
+                          ref={bannerInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => onBannerPick(e.target.files?.[0] || null)}
+                        />
 
-              <div className="pt-4 flex flex-col sm:flex-row gap-3 sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closeCreate}
-                  className="px-8 py-3 rounded-full bg-white border border-slate-200 text-slate-500 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingCreate}
-                  className="px-10 py-3 rounded-full bg-samasa-black text-samasa-yellow font-black text-[10px] uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {savingCreate ? "Saving..." : "Create"}
-                </button>
-              </div>
-            </form>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => bannerInputRef.current?.click()}
+                            className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <Upload className="w-4 h-4" /> Choose
+                            </span>
+                          </button>
+
+                          {prBannerUrl && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                revokeIfBlob(lastBannerObjectUrlRef.current || undefined);
+                                lastBannerObjectUrlRef.current = null;
+                                setPrBannerUrl("");
+                                setPrBannerFile(null);
+                                if (bannerInputRef.current) bannerInputRef.current.value = "";
+                              }}
+                              className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-samasa-red transition-all"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {prBannerUrl ? (
+                        <div className="rounded-2xl overflow-hidden border border-slate-100 bg-slate-50">
+                          <img
+                            src={prBannerUrl}
+                            alt="Selected banner"
+                            className="w-full h-56 object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                          No banner selected.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Project PDF */}
+                    <div className="rounded-2xl border border-slate-200 p-6">
+                      <div className="flex items-center justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-samasa-blue" />
+                          <div>
+                            <div className="text-sm font-black text-samasa-black">
+                              Attach PDF (optional)
+                            </div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              Upload a PDF document
+                            </div>
+                          </div>
+                        </div>
+
+                        <input
+                          ref={projectPdfInputRef}
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={(e) => onProjectPdfPick(e.target.files?.[0] || null)}
+                        />
+
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => projectPdfInputRef.current?.click()}
+                            className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <Upload className="w-4 h-4" /> Choose
+                            </span>
+                          </button>
+
+                          {(prPdfUrl || prPdfName) && (
+                            <button
+                              type="button"
+                              onClick={removeProjectPdf}
+                              className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-samasa-red transition-all"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {(prPdfUrl || prPdfName) ? (
+                        <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                          <div className="flex items-center gap-3 text-slate-600">
+                            <FileText className="w-4 h-4" />
+                            <span className="text-xs font-bold truncate max-w-[60vw] sm:max-w-[420px]">
+                              {prPdfName || "Selected PDF"}
+                            </span>
+                          </div>
+
+                          {prPdfUrl && (
+                            <a
+                              href={prPdfUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-4 py-2 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
+                            >
+                              Preview
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                          No PDF attached.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                <div className="pt-4 flex flex-col sm:flex-row gap-3 sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={closeCreate}
+                    className="px-8 py-3 rounded-full bg-white border border-slate-200 text-slate-500 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingCreate}
+                    className="px-10 py-3 rounded-full bg-samasa-black text-samasa-yellow font-black text-[10px] uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {savingCreate ? "Saving..." : "Create"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
 
       {/* ==============================
-          PROPOSAL MODAL
+          PROPOSAL MODAL (FIXED: scrollable)
       ============================== */}
       {selectedProposal && (
         <div
-          className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center px-4 py-6"
+          className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-start justify-center px-4 py-6 overflow-y-auto"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) closeProposalModal();
           }}
         >
-          <div className="w-full max-w-3xl bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden">
+          <div className="w-full max-w-3xl bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
             <div className="px-10 py-8 border-b border-slate-100 flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -2092,224 +2105,226 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
               </div>
             </div>
 
-            <div className="px-10 py-8 space-y-8">
-              {proposalEditMode ? (
-                <>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      Title
-                    </label>
-                    <input
-                      value={ppTitle}
-                      onChange={(e) => setPpTitle(e.target.value)}
-                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex-1 overflow-y-auto">
+              <div className="px-10 py-8 space-y-8">
+                {proposalEditMode ? (
+                  <>
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Category
+                        Title
                       </label>
-                      <select
-                        value={String(ppCategory)}
-                        onChange={(e) => setPpCategory(e.target.value as any)}
+                      <input
+                        value={ppTitle}
+                        onChange={(e) => setPpTitle(e.target.value)}
                         className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      >
-                        <option value={ProposalCategory.RESOURCES}>RESOURCES</option>
-                        <option value={ProposalCategory.PROGRAMS}>PROGRAMS</option>
-                        <option value={ProposalCategory.POLICY}>POLICY</option>
-                      </select>
+                      />
                     </div>
 
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Status
-                      </label>
-                      <select
-                        value={ppStatus}
-                        onChange={(e) => setPpStatus(e.target.value)}
-                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      >
-                        <option value="REVIEW">REVIEW</option>
-                        <option value="APPROVED">APPROVED</option>
-                        <option value="IMPLEMENTED">IMPLEMENTED</option>
-                        <option value="REJECTED">REJECTED</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      Proponent
-                    </label>
-                    <input
-                      value={ppProponent}
-                      onChange={(e) => setPpProponent(e.target.value)}
-                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      Narrative / Description
-                    </label>
-                    <textarea
-                      value={ppNarrative}
-                      onChange={(e) => setPpNarrative(e.target.value)}
-                      className="w-full min-h-[180px] px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                    />
-                  </div>
-
-                  {/* Edit PDF */}
-                  <div className="rounded-2xl border border-slate-200 p-6">
-                    <div className="flex items-center justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-samasa-blue" />
-                        <div>
-                          <div className="text-sm font-black text-samasa-black">
-                            Attached PDF
-                          </div>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Replace or remove
-                          </div>
-                        </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Category
+                        </label>
+                        <select
+                          value={String(ppCategory)}
+                          onChange={(e) => setPpCategory(e.target.value as any)}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                        >
+                          <option value={ProposalCategory.RESOURCES}>RESOURCES</option>
+                          <option value={ProposalCategory.PROGRAMS}>PROGRAMS</option>
+                          <option value={ProposalCategory.POLICY}>POLICY</option>
+                        </select>
                       </div>
 
-                      <input
-                        ref={proposalModalPdfRef}
-                        type="file"
-                        accept="application/pdf"
-                        className="hidden"
-                        onChange={(e) =>
-                          onProposalModalPdfPick(e.target.files?.[0] || null)
-                        }
-                      />
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => proposalModalPdfRef.current?.click()}
-                          className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Status
+                        </label>
+                        <select
+                          value={ppStatus}
+                          onChange={(e) => setPpStatus(e.target.value)}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
                         >
-                          <span className="inline-flex items-center gap-2">
-                            <Upload className="w-4 h-4" /> Replace
-                          </span>
-                        </button>
+                          <option value="REVIEW">REVIEW</option>
+                          <option value="APPROVED">APPROVED</option>
+                          <option value="IMPLEMENTED">IMPLEMENTED</option>
+                          <option value="REJECTED">REJECTED</option>
+                        </select>
+                      </div>
+                    </div>
 
-                        {(ppPdfUrl || ppPdfName) && (
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                        Proponent
+                      </label>
+                      <input
+                        value={ppProponent}
+                        onChange={(e) => setPpProponent(e.target.value)}
+                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                        Narrative / Description
+                      </label>
+                      <textarea
+                        value={ppNarrative}
+                        onChange={(e) => setPpNarrative(e.target.value)}
+                        className="w-full min-h-[180px] px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                      />
+                    </div>
+
+                    {/* Edit PDF */}
+                    <div className="rounded-2xl border border-slate-200 p-6">
+                      <div className="flex items-center justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-samasa-blue" />
+                          <div>
+                            <div className="text-sm font-black text-samasa-black">
+                              Attached PDF
+                            </div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              Replace or remove
+                            </div>
+                          </div>
+                        </div>
+
+                        <input
+                          ref={proposalModalPdfRef}
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={(e) =>
+                            onProposalModalPdfPick(e.target.files?.[0] || null)
+                          }
+                        />
+
+                        <div className="flex gap-2">
                           <button
                             type="button"
-                            onClick={removeProposalModalPdf}
-                            className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-samasa-red transition-all"
+                            onClick={() => proposalModalPdfRef.current?.click()}
+                            className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
                           >
-                            Remove
+                            <span className="inline-flex items-center gap-2">
+                              <Upload className="w-4 h-4" /> Replace
+                            </span>
                           </button>
-                        )}
-                      </div>
-                    </div>
 
-                    {(ppPdfUrl || ppPdfName) ? (
-                      <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-                        <div className="flex items-center gap-3 text-slate-600">
-                          <FileText className="w-4 h-4" />
-                          <span className="text-xs font-bold truncate max-w-[60vw] sm:max-w-[420px]">
-                            {ppPdfName || "PDF attached"}
-                          </span>
-                        </div>
-
-                        {ppPdfUrl && (
-                          <a
-                            href={ppPdfUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-4 py-2 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
-                          >
-                            Preview
-                          </a>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                        No PDF attached.
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="rounded-2xl border border-slate-200 p-6 bg-white">
-                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        Category
-                      </div>
-                      <div className="px-4 py-2 rounded-full bg-slate-50 border border-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                        {(selectedProposal as any).category}
-                      </div>
-                    </div>
-
-                    <p className="text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
-                      {(selectedProposal as any).description}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 p-6">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-samasa-blue" />
-                        <div>
-                          <div className="text-sm font-black text-samasa-black">
-                            Document
-                          </div>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            PDF attachment (if any)
-                          </div>
+                          {(ppPdfUrl || ppPdfName) && (
+                            <button
+                              type="button"
+                              onClick={removeProposalModalPdf}
+                              className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-samasa-red transition-all"
+                            >
+                              Remove
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      {(selectedProposal as any).pdfUrl ? (
-                        <a
-                          href={(selectedProposal as any).pdfUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-5 py-2.5 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <Download className="w-4 h-4" />
-                            Open PDF
-                          </span>
-                        </a>
+                      {(ppPdfUrl || ppPdfName) ? (
+                        <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                          <div className="flex items-center gap-3 text-slate-600">
+                            <FileText className="w-4 h-4" />
+                            <span className="text-xs font-bold truncate max-w-[60vw] sm:max-w-[420px]">
+                              {ppPdfName || "PDF attached"}
+                            </span>
+                          </div>
+
+                          {ppPdfUrl && (
+                            <a
+                              href={ppPdfUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-4 py-2 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
+                            >
+                              Preview
+                            </a>
+                          )}
+                        </div>
                       ) : (
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                          None
-                        </span>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                          No PDF attached.
+                        </div>
                       )}
                     </div>
-
-                    {(selectedProposal as any).pdfName && (
-                      <div className="mt-4 text-xs font-bold text-slate-500 truncate">
-                        {(selectedProposal as any).pdfName}
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-2xl border border-slate-200 p-6 bg-white">
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          Category
+                        </div>
+                        <div className="px-4 py-2 rounded-full bg-slate-50 border border-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                          {(selectedProposal as any).category}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </>
-              )}
+
+                      <p className="text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
+                        {(selectedProposal as any).description}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 p-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-samasa-blue" />
+                          <div>
+                            <div className="text-sm font-black text-samasa-black">
+                              Document
+                            </div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              PDF attachment (if any)
+                            </div>
+                          </div>
+                        </div>
+
+                        {(selectedProposal as any).pdfUrl ? (
+                          <a
+                            href={(selectedProposal as any).pdfUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-5 py-2.5 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <Download className="w-4 h-4" />
+                              Open PDF
+                            </span>
+                          </a>
+                        ) : (
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                            None
+                          </span>
+                        )}
+                      </div>
+
+                      {(selectedProposal as any).pdfName && (
+                        <div className="mt-4 text-xs font-bold text-slate-500 truncate">
+                          {(selectedProposal as any).pdfName}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {/* ==============================
-          PROJECT MODAL
+          PROJECT MODAL (FIXED: scrollable)  ✅ fixes "Examine Project"
       ============================== */}
       {selectedProject && (
         <div
-          className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center px-4 py-6"
+          className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-start justify-center px-4 py-6 overflow-y-auto"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) closeProjectModal();
           }}
         >
-          <div className="w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden">
+          <div className="w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
             <div className="px-10 py-8 border-b border-slate-100 flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -2383,392 +2398,394 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
               </div>
             </div>
 
-            <div className="px-10 py-8 space-y-8">
-              {/* Banner */}
-              <div className="rounded-[2rem] overflow-hidden border border-slate-200 bg-slate-50">
-                <img
-                  src={
-                    projectEditMode
-                      ? epBannerUrl || DEFAULT_PROJECT_BANNER
-                      : (selectedProject as any).bannerImage || DEFAULT_PROJECT_BANNER
-                  }
-                  alt="Project banner"
-                  className="w-full h-64 object-cover"
-                />
-              </div>
+            <div className="flex-1 overflow-y-auto">
+              <div className="px-10 py-8 space-y-8">
+                {/* Banner */}
+                <div className="rounded-[2rem] overflow-hidden border border-slate-200 bg-slate-50">
+                  <img
+                    src={
+                      projectEditMode
+                        ? epBannerUrl || DEFAULT_PROJECT_BANNER
+                        : (selectedProject as any).bannerImage || DEFAULT_PROJECT_BANNER
+                    }
+                    alt="Project banner"
+                    className="w-full h-64 object-cover"
+                  />
+                </div>
 
-              {projectEditMode ? (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {projectEditMode ? (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Title
+                        </label>
+                        <input
+                          value={epTitle}
+                          onChange={(e) => setEpTitle(e.target.value)}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Timeline
+                        </label>
+                        <input
+                          value={epTimeline}
+                          onChange={(e) => setEpTimeline(e.target.value)}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          In Charge
+                        </label>
+                        <input
+                          value={epInCharge}
+                          onChange={(e) => setEpInCharge(e.target.value)}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Status
+                        </label>
+                        <select
+                          value={String(epStatus)}
+                          onChange={(e) => setEpStatus(e.target.value as any)}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                        >
+                          <option value={ProjectStatus.PLANNED}>PLANNED</option>
+                          <option value={ProjectStatus.ONGOING}>ONGOING</option>
+                          <option value={ProjectStatus.COMPLETED}>COMPLETED</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Budget Allocated
+                        </label>
+                        <input
+                          value={String(epBudget)}
+                          onChange={(e) => setEpBudget(safeNum(e.target.value))}
+                          type="number"
+                          min={0}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                          Spent Amount
+                        </label>
+                        <input
+                          value={String(epSpent)}
+                          onChange={(e) => setEpSpent(safeNum(e.target.value))}
+                          type="number"
+                          min={0}
+                          className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                        />
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Title
+                        Objectives (comma-separated)
                       </label>
                       <input
-                        value={epTitle}
-                        onChange={(e) => setEpTitle(e.target.value)}
+                        value={epObjectives}
+                        onChange={(e) => setEpObjectives(e.target.value)}
                         className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                        placeholder="e.g. Awareness, Training, Outreach"
                       />
                     </div>
 
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Timeline
+                        Description
                       </label>
-                      <input
-                        value={epTimeline}
-                        onChange={(e) => setEpTimeline(e.target.value)}
-                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
+                      <textarea
+                        value={epDesc}
+                        onChange={(e) => setEpDesc(e.target.value)}
+                        className="w-full min-h-[180px] px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        In Charge
-                      </label>
-                      <input
-                        value={epInCharge}
-                        onChange={(e) => setEpInCharge(e.target.value)}
-                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Status
-                      </label>
-                      <select
-                        value={String(epStatus)}
-                        onChange={(e) => setEpStatus(e.target.value as any)}
-                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      >
-                        <option value={ProjectStatus.PLANNED}>PLANNED</option>
-                        <option value={ProjectStatus.ONGOING}>ONGOING</option>
-                        <option value={ProjectStatus.COMPLETED}>COMPLETED</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Budget Allocated
-                      </label>
-                      <input
-                        value={String(epBudget)}
-                        onChange={(e) => setEpBudget(safeNum(e.target.value))}
-                        type="number"
-                        min={0}
-                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                        Spent Amount
-                      </label>
-                      <input
-                        value={String(epSpent)}
-                        onChange={(e) => setEpSpent(safeNum(e.target.value))}
-                        type="number"
-                        min={0}
-                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      Objectives (comma-separated)
-                    </label>
-                    <input
-                      value={epObjectives}
-                      onChange={(e) => setEpObjectives(e.target.value)}
-                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                      placeholder="e.g. Awareness, Training, Outreach"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                      Description
-                    </label>
-                    <textarea
-                      value={epDesc}
-                      onChange={(e) => setEpDesc(e.target.value)}
-                      className="w-full min-h-[180px] px-5 py-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-samasa-blue/30 font-medium"
-                    />
-                  </div>
-
-                  {/* Banner controls */}
-                  <div className="rounded-2xl border border-slate-200 p-6">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <ImageIcon className="w-5 h-5 text-samasa-red" />
-                        <div>
-                          <div className="text-sm font-black text-samasa-black">
-                            Banner Image
-                          </div>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Replace or remove
+                    {/* Banner controls */}
+                    <div className="rounded-2xl border border-slate-200 p-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <ImageIcon className="w-5 h-5 text-samasa-red" />
+                          <div>
+                            <div className="text-sm font-black text-samasa-black">
+                              Banner Image
+                            </div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              Replace or remove
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <input
-                        ref={projectModalBannerRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) =>
-                          onProjectModalBannerPick(e.target.files?.[0] || null)
-                        }
-                      />
+                        <input
+                          ref={projectModalBannerRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) =>
+                            onProjectModalBannerPick(e.target.files?.[0] || null)
+                          }
+                        />
 
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => projectModalBannerRef.current?.click()}
-                          className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <Upload className="w-4 h-4" /> Replace
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={removeProjectModalBanner}
-                          className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-samasa-red transition-all"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* PDF controls */}
-                  <div className="rounded-2xl border border-slate-200 p-6">
-                    <div className="flex items-center justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-samasa-blue" />
-                        <div>
-                          <div className="text-sm font-black text-samasa-black">
-                            Attached PDF
-                          </div>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Replace or remove
-                          </div>
-                        </div>
-                      </div>
-
-                      <input
-                        ref={projectModalPdfRef}
-                        type="file"
-                        accept="application/pdf"
-                        className="hidden"
-                        onChange={(e) => onProjectModalPdfPick(e.target.files?.[0] || null)}
-                      />
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => projectModalPdfRef.current?.click()}
-                          className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <Upload className="w-4 h-4" /> Replace
-                          </span>
-                        </button>
-
-                        {(epPdfUrl || epPdfName) && (
+                        <div className="flex gap-2">
                           <button
                             type="button"
-                            onClick={removeProjectModalPdf}
+                            onClick={() => projectModalBannerRef.current?.click()}
+                            className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <Upload className="w-4 h-4" /> Replace
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={removeProjectModalBanner}
                             className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-samasa-red transition-all"
                           >
                             Remove
                           </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* PDF controls */}
+                    <div className="rounded-2xl border border-slate-200 p-6">
+                      <div className="flex items-center justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-samasa-blue" />
+                          <div>
+                            <div className="text-sm font-black text-samasa-black">
+                              Attached PDF
+                            </div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              Replace or remove
+                            </div>
+                          </div>
+                        </div>
+
+                        <input
+                          ref={projectModalPdfRef}
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={(e) => onProjectModalPdfPick(e.target.files?.[0] || null)}
+                        />
+
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => projectModalPdfRef.current?.click()}
+                            className="px-4 py-2 rounded-full bg-slate-50 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <Upload className="w-4 h-4" /> Replace
+                            </span>
+                          </button>
+
+                          {(epPdfUrl || epPdfName) && (
+                            <button
+                              type="button"
+                              onClick={removeProjectModalPdf}
+                              className="px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-samasa-red transition-all"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {(epPdfUrl || epPdfName) ? (
+                        <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                          <div className="flex items-center gap-3 text-slate-600">
+                            <FileText className="w-4 h-4" />
+                            <span className="text-xs font-bold truncate max-w-[60vw] sm:max-w-[520px]">
+                              {epPdfName || "PDF attached"}
+                            </span>
+                          </div>
+
+                          {epPdfUrl && (
+                            <a
+                              href={epPdfUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-4 py-2 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
+                            >
+                              Preview
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                          No PDF attached.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Summary row */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="rounded-2xl border border-slate-200 p-6">
+                        <div className="flex items-center gap-3 mb-2 text-slate-400">
+                          <Coins className="w-5 h-5" />
+                          <div className="text-[10px] font-black uppercase tracking-widest">
+                            Budget
+                          </div>
+                        </div>
+                        <div className="text-2xl font-black text-samasa-black">
+                          ₱{safeNum((selectedProject as any).budgetAllocated).toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 p-6">
+                        <div className="flex items-center gap-3 mb-2 text-slate-400">
+                          <Coins className="w-5 h-5" />
+                          <div className="text-[10px] font-black uppercase tracking-widest">
+                            Spent
+                          </div>
+                        </div>
+                        <div className="text-2xl font-black text-samasa-black">
+                          ₱{safeNum((selectedProject as any).spentAmount).toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 p-6">
+                        <div className="flex items-center gap-3 mb-2 text-slate-400">
+                          <Target className="w-5 h-5" />
+                          <div className="text-[10px] font-black uppercase tracking-widest">
+                            Utilization
+                          </div>
+                        </div>
+                        <div className="text-2xl font-black text-samasa-black">
+                          {Math.round(
+                            safePercent(
+                              safeNum((selectedProject as any).spentAmount),
+                              safeNum((selectedProject as any).budgetAllocated)
+                            )
+                          )}
+                          %
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Progress */}
+                    <div className="rounded-2xl border border-slate-200 p-6">
+                      <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                        <span>Fund Utilization</span>
+                        <span className="text-samasa-blue">
+                          {Math.round(
+                            safePercent(
+                              safeNum((selectedProject as any).spentAmount),
+                              safeNum((selectedProject as any).budgetAllocated)
+                            )
+                          )}
+                          %
+                        </span>
+                      </div>
+                      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-samasa-blue rounded-full transition-all duration-700"
+                          style={{
+                            width: `${safePercent(
+                              safeNum((selectedProject as any).spentAmount),
+                              safeNum((selectedProject as any).budgetAllocated)
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Description */}
+                    <div className="rounded-2xl border border-slate-200 p-6">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                        Description
+                      </div>
+                      <p className="text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
+                        {(selectedProject as any).description}
+                      </p>
+                    </div>
+
+                    {/* Objectives */}
+                    <div className="rounded-2xl border border-slate-200 p-6">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                        Objectives
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {((selectedProject as any).objectives || []).length ? (
+                          (selectedProject as any).objectives.map((obj: string, i: number) => (
+                            <span
+                              key={i}
+                              className="px-4 py-2 rounded-full bg-slate-50 border border-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest"
+                            >
+                              {obj}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                            None
+                          </span>
                         )}
                       </div>
                     </div>
 
-                    {(epPdfUrl || epPdfName) ? (
-                      <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-                        <div className="flex items-center gap-3 text-slate-600">
-                          <FileText className="w-4 h-4" />
-                          <span className="text-xs font-bold truncate max-w-[60vw] sm:max-w-[520px]">
-                            {epPdfName || "PDF attached"}
-                          </span>
+                    {/* PDF */}
+                    <div className="rounded-2xl border border-slate-200 p-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-samasa-blue" />
+                          <div>
+                            <div className="text-sm font-black text-samasa-black">
+                              Document
+                            </div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              PDF attachment (if any)
+                            </div>
+                          </div>
                         </div>
 
-                        {epPdfUrl && (
+                        {(selectedProject as any).pdfUrl ? (
                           <a
-                            href={epPdfUrl}
+                            href={(selectedProject as any).pdfUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="px-4 py-2 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
+                            className="px-5 py-2.5 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
                           >
-                            Preview
+                            <span className="inline-flex items-center gap-2">
+                              <Download className="w-4 h-4" />
+                              Open PDF
+                            </span>
                           </a>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                        No PDF attached.
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Summary row */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="rounded-2xl border border-slate-200 p-6">
-                      <div className="flex items-center gap-3 mb-2 text-slate-400">
-                        <Coins className="w-5 h-5" />
-                        <div className="text-[10px] font-black uppercase tracking-widest">
-                          Budget
-                        </div>
-                      </div>
-                      <div className="text-2xl font-black text-samasa-black">
-                        ₱{safeNum((selectedProject as any).budgetAllocated).toLocaleString()}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 p-6">
-                      <div className="flex items-center gap-3 mb-2 text-slate-400">
-                        <Coins className="w-5 h-5" />
-                        <div className="text-[10px] font-black uppercase tracking-widest">
-                          Spent
-                        </div>
-                      </div>
-                      <div className="text-2xl font-black text-samasa-black">
-                        ₱{safeNum((selectedProject as any).spentAmount).toLocaleString()}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 p-6">
-                      <div className="flex items-center gap-3 mb-2 text-slate-400">
-                        <Target className="w-5 h-5" />
-                        <div className="text-[10px] font-black uppercase tracking-widest">
-                          Utilization
-                        </div>
-                      </div>
-                      <div className="text-2xl font-black text-samasa-black">
-                        {Math.round(
-                          safePercent(
-                            safeNum((selectedProject as any).spentAmount),
-                            safeNum((selectedProject as any).budgetAllocated)
-                          )
-                        )}
-                        %
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Progress */}
-                  <div className="rounded-2xl border border-slate-200 p-6">
-                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
-                      <span>Fund Utilization</span>
-                      <span className="text-samasa-blue">
-                        {Math.round(
-                          safePercent(
-                            safeNum((selectedProject as any).spentAmount),
-                            safeNum((selectedProject as any).budgetAllocated)
-                          )
-                        )}
-                        %
-                      </span>
-                    </div>
-                    <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-samasa-blue rounded-full transition-all duration-700"
-                        style={{
-                          width: `${safePercent(
-                            safeNum((selectedProject as any).spentAmount),
-                            safeNum((selectedProject as any).budgetAllocated)
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Description */}
-                  <div className="rounded-2xl border border-slate-200 p-6">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
-                      Description
-                    </div>
-                    <p className="text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
-                      {(selectedProject as any).description}
-                    </p>
-                  </div>
-
-                  {/* Objectives */}
-                  <div className="rounded-2xl border border-slate-200 p-6">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
-                      Objectives
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {((selectedProject as any).objectives || []).length ? (
-                        (selectedProject as any).objectives.map((obj: string, i: number) => (
-                          <span
-                            key={i}
-                            className="px-4 py-2 rounded-full bg-slate-50 border border-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest"
-                          >
-                            {obj}
+                        ) : (
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                            None
                           </span>
-                        ))
-                      ) : (
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                          None
-                        </span>
+                        )}
+                      </div>
+
+                      {(selectedProject as any).pdfName && (
+                        <div className="mt-4 text-xs font-bold text-slate-500 truncate">
+                          {(selectedProject as any).pdfName}
+                        </div>
                       )}
                     </div>
-                  </div>
-
-                  {/* PDF */}
-                  <div className="rounded-2xl border border-slate-200 p-6">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-samasa-blue" />
-                        <div>
-                          <div className="text-sm font-black text-samasa-black">
-                            Document
-                          </div>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            PDF attachment (if any)
-                          </div>
-                        </div>
-                      </div>
-
-                      {(selectedProject as any).pdfUrl ? (
-                        <a
-                          href={(selectedProject as any).pdfUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-5 py-2.5 rounded-full bg-samasa-black text-samasa-yellow text-[10px] font-black uppercase tracking-widest hover:bg-samasa-blue hover:text-white transition-all"
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <Download className="w-4 h-4" />
-                            Open PDF
-                          </span>
-                        </a>
-                      ) : (
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                          None
-                        </span>
-                      )}
-                    </div>
-
-                    {(selectedProject as any).pdfName && (
-                      <div className="mt-4 text-xs font-bold text-slate-500 truncate">
-                        {(selectedProject as any).pdfName}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
