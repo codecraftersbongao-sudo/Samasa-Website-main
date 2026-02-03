@@ -9,7 +9,7 @@ import { User, UserRole, DepartmentType, LandingPageContent } from "../types";
 
 // ✅ Firestore
 import { db } from "../firebase/firebaseConfig"; // <-- change path if needed
-import { doc, onSnapshot, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 
 const DEFAULT_LANDING_CONTENT: LandingPageContent = {
   heroBackgroundUrl: "",
@@ -41,6 +41,7 @@ const LandingPage: React.FC = () => {
   const [play, setPlay] = useState(false);
   const [content, setContent] = useState<LandingPageContent>(DEFAULT_LANDING_CONTENT);
   const [loading, setLoading] = useState(true);
+  const [publicError, setPublicError] = useState<string | null>(null);
 
   // Hero animation
   useEffect(() => {
@@ -48,52 +49,45 @@ const LandingPage: React.FC = () => {
     return () => window.clearTimeout(t);
   }, []);
 
-  // ✅ Firestore: load + realtime subscribe
+  /**
+   * ✅ Public-safe Firestore load
+   * - NO setDoc() here (public visitors will fail writes)
+   * - Just listen for the existing doc
+   */
   useEffect(() => {
+    setLoading(true);
+    setPublicError(null);
+
     const ref = LANDING_DOC_REF();
-    let unsub: (() => void) | undefined;
 
-    (async () => {
-      try {
-        // Ensure doc exists once
-        const snap = await getDoc(ref);
-        if (!snap.exists()) {
-          await setDoc(
-            ref,
-            {
-              ...DEFAULT_LANDING_CONTENT,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-              updatedBy: "system",
-            },
-            { merge: true }
-          );
+    const unsub = onSnapshot(
+      ref,
+      (s) => {
+        if (s.exists()) {
+          const data = (s.data() || {}) as Partial<LandingPageContent>;
+          setContent({ ...DEFAULT_LANDING_CONTENT, ...data } as LandingPageContent);
+        } else {
+          // If admin hasn't created it yet, show defaults (still "works" publicly)
+          setContent(DEFAULT_LANDING_CONTENT);
         }
+        setLoading(false);
+      },
+      (err: any) => {
+        console.error("LandingPage onSnapshot error:", err);
 
-        // Realtime listen
-        unsub = onSnapshot(
-          ref,
-          (s) => {
-            const data = (s.data() || {}) as Partial<LandingPageContent>;
-            setContent({ ...DEFAULT_LANDING_CONTENT, ...data } as LandingPageContent);
-            setLoading(false);
-          },
-          (err) => {
-            console.error("LandingPage onSnapshot error:", err);
-            setContent(DEFAULT_LANDING_CONTENT);
-            setLoading(false);
-          }
-        );
-      } catch (err) {
-        console.error("LandingPage Firestore load error:", err);
+        // Helpful message for public viewers when rules block reads
+        const msg =
+          err?.code === "permission-denied"
+            ? "Public data is currently locked by Firestore rules. Allow public READ for siteSettings/landingPage (and other public collections)."
+            : "Unable to load live content right now.";
+
+        setPublicError(msg);
         setContent(DEFAULT_LANDING_CONTENT);
         setLoading(false);
       }
-    })();
+    );
 
-    return () => {
-      if (unsub) unsub();
-    };
+    return () => unsub();
   }, []);
 
   // Dummy user object to satisfy TypeScript requirements for the Budget component.
@@ -181,6 +175,12 @@ const LandingPage: React.FC = () => {
             </div>
           )}
 
+          {!loading && publicError && (
+            <div className="mb-6 inline-flex items-center gap-3 px-5 py-3 rounded-full bg-white/10 text-white/80 text-[10px] font-black uppercase tracking-[0.2em]">
+              {publicError}
+            </div>
+          )}
+
           <h1
             className={`${baseReveal} ${show} delay-200 text-6xl md:text-9xl font-black text-white leading-[0.9] mb-8 tracking-tighter`}
           >
@@ -197,7 +197,7 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* --- Vision Section --- */}
-      <section id="vision" className="py-32 bg-white">
+      <section id="vision" className="py-32 bg-white scroll-mt-24">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <div>
@@ -239,7 +239,10 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* --- LIVE DASHBOARD: PROJECTS --- */}
-      <section id="projects" className="py-32 bg-slate-50 border-t border-slate-100">
+      <section
+        id="projects"
+        className="py-32 bg-slate-50 border-t border-slate-100 scroll-mt-24"
+      >
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="mb-20 text-center">
             <h2 className="text-xs font-black tracking-[0.4em] text-samasa-red uppercase mb-4">
@@ -249,12 +252,14 @@ const LandingPage: React.FC = () => {
               {content.projectsTitle}
             </h3>
           </div>
+
+          {/* Public viewer mode */}
           <LegislativeHub isEditable={false} />
         </div>
       </section>
 
       {/* --- LIVE DASHBOARD: BUDGET --- */}
-      <section id="budget" className="py-32 bg-white">
+      <section id="budget" className="py-32 bg-white scroll-mt-24">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="mb-20">
             <h2 className="text-xs font-black tracking-[0.4em] text-samasa-blue uppercase mb-4">
@@ -265,7 +270,7 @@ const LandingPage: React.FC = () => {
             </h3>
           </div>
 
-          {/* ✅ This hides BOTH "Budget" and the "Overall" badge inside Budget.tsx */}
+          {/* ✅ public view */}
           <Budget user={PUBLIC_VIEWER} isEditable={false} hideTitle />
         </div>
       </section>
