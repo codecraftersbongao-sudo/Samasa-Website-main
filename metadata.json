@@ -1,0 +1,7 @@
+{
+  "name": "SAMASA Student Government Portal",
+  "description": "A modern, transparent, and professional student government website for the College of Arts and Social Sciences (CASS). Featuring real-time project updates and budget tracking.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
