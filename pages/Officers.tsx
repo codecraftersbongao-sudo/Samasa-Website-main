@@ -127,9 +127,7 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
     const deptQ = query(collection(db, "departments"), orderBy("order", "asc"));
     const offQ = query(collection(db, "officers"), orderBy("order", "asc"));
 
-    // 🔥 IMPORTANT FIX:
     // where(role == OFFICER) + orderBy(createdAt) often requires a composite index.
-    // If index missing, snapshot fails and you get empty UI.
     const acctQ = query(collection(db, "users"), where("role", "==", "OFFICER"));
 
     const unsubDept = onSnapshot(
@@ -262,8 +260,7 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
 
     const governor = by(/\b(governor|mayor)\b/) || by(/\bpresident\b/);
     const vice = by(/\bvice\s*(governor|mayor)\b/) || by(/\bvice\s*president\b/);
-    const secretary =
-      by(/\b(secretary\s*general|general\s*secretary)\b/) || by(/\bsecretary\b/);
+    const secretary = by(/\b(secretary\s*general|general\s*secretary)\b/) || by(/\bsecretary\b/);
     const auditor = by(/\bauditor\b/);
 
     return { governor, vice, secretary, auditor };
@@ -300,7 +297,10 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
   );
 
   const samasaGrouped = useMemo(() => groupByDivision(samasaAll), [samasaAll]);
-  const samasaHighlights = useMemo(() => findExecutiveHighlights(samasaGrouped.exec), [samasaGrouped.exec]);
+  const samasaHighlights = useMemo(
+    () => findExecutiveHighlights(samasaGrouped.exec),
+    [samasaGrouped.exec]
+  );
 
   const samasaHighlightIds = new Set(
     [
@@ -327,7 +327,10 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
   );
 
   const deptGrouped = useMemo(() => groupByDivision(deptAll), [deptAll]);
-  const deptHighlights = useMemo(() => findExecutiveHighlights(deptGrouped.exec), [deptGrouped.exec]);
+  const deptHighlights = useMemo(
+    () => findExecutiveHighlights(deptGrouped.exec),
+    [deptGrouped.exec]
+  );
 
   const deptHighlightIds = new Set(
     [
@@ -387,7 +390,9 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
     if (!confirm("Delete this officer entry?")) return;
 
     // If any accounts link to this officer, unlink them
-    const linked = accounts.filter((a) => a.role === UserRole.OFFICER && String(a.officerId) === String(id));
+    const linked = accounts.filter(
+      (a) => a.role === UserRole.OFFICER && String(a.officerId) === String(id)
+    );
     if (linked.length > 0) {
       const ok = confirm(`This officer has ${linked.length} linked account(s). Unlink them too?`);
       if (ok) {
@@ -456,7 +461,10 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
   // Accounts CRUD (Firestore users + Firebase Auth create)
   const getSecondaryAuth = () => {
     const options = (auth as any)?.app?.options;
-    if (!options) throw new Error("Firebase app options not found. Ensure auth is initialized from firebaseConfig.");
+    if (!options)
+      throw new Error(
+        "Firebase app options not found. Ensure auth is initialized from firebaseConfig."
+      );
 
     const existing = getApps().find((a) => a.name === SECONDARY_APP_NAME);
     const secondaryApp = existing ?? initializeApp(options, SECONDARY_APP_NAME);
@@ -505,7 +513,9 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
   const deleteAccount = async (id: string) => {
     if (!confirm("Delete this officer account?")) return;
     await deleteDoc(doc(db, "users", id));
-    alert("Account profile deleted. If you also need to delete the Auth login, do it via Admin SDK / Firebase Console.");
+    alert(
+      "Account profile deleted. If you also need to delete the Auth login, do it via Admin SDK / Firebase Console."
+    );
   };
 
   const submitAccount = async (e: React.FormEvent) => {
@@ -555,7 +565,11 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
 
     try {
       const secondaryAuth = getSecondaryAuth();
-      const cred = await createUserWithEmailAndPassword(secondaryAuth, emailNorm, acctForm.password);
+      const cred = await createUserWithEmailAndPassword(
+        secondaryAuth,
+        emailNorm,
+        acctForm.password
+      );
       const uid = cred.user.uid;
 
       await setDoc(doc(db, "users", uid), {
@@ -602,7 +616,8 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
     if (!isSuperAdmin) return;
     if (String(deptId) === String(DepartmentType.SAMASA)) return;
 
-    if (!confirm(`Delete department "${deptName(deptId)}"? Officers under it will be moved to SAMASA.`)) return;
+    if (!confirm(`Delete department "${deptName(deptId)}"? Officers under it will be moved to SAMASA.`))
+      return;
 
     setDeptDraft((p) => p.filter((d) => String(d.id) !== String(deptId)));
 
@@ -613,11 +628,17 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
       const batch = writeBatch(db);
 
       toMoveOfficers.forEach((o) => {
-        batch.update(doc(db, "officers", o.id), { department: DepartmentType.SAMASA, updatedAt: serverTimestamp() });
+        batch.update(doc(db, "officers", o.id), {
+          department: DepartmentType.SAMASA,
+          updatedAt: serverTimestamp(),
+        });
       });
 
       toMoveAccounts.forEach((a) => {
-        batch.update(doc(db, "users", a.id), { department: DepartmentType.SAMASA, updatedAt: serverTimestamp() });
+        batch.update(doc(db, "users", a.id), {
+          department: DepartmentType.SAMASA,
+          updatedAt: serverTimestamp(),
+        });
       });
 
       await batch.commit();
@@ -731,83 +752,237 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
     </div>
   );
 
-  const renderOfficerCard = (o: Officer, variant: "dark" | "light" = "light", size: "md" | "xl" | "spot" = "md") => {
-    const hasPhoto = !!o.photoUrl;
-    const hasAccount = !!accountForOfficer(o.id);
+  // ✅ Better typography handling for long names (no letter-by-letter breaks)
+const nameClassFor = (name: string, size: "md" | "xl" | "spot") => {
+  const len = (name || "").trim().length;
 
-    const card =
-      variant === "dark" ? "bg-samasa-black text-white border-white/10" : "bg-white text-samasa-black border-slate-200";
+  // SPOT cards (executive highlights) start big, shrink progressively
+  if (size === "spot") {
+    if (len <= 14) return "text-6xl sm:text-7xl";
+    if (len <= 18) return "text-5xl sm:text-6xl";
+    if (len <= 24) return "text-4xl sm:text-5xl";
+    if (len <= 30) return "text-3xl sm:text-4xl";
+    if (len <= 38) return "text-2xl sm:text-3xl";
+    return "text-xl sm:text-2xl";
+  }
 
-    const topBar = variant === "dark" ? "bg-samasa-yellow" : "bg-samasa-blue";
+  // XL cards
+  if (size === "xl") {
+    if (len <= 16) return "text-4xl";
+    if (len <= 22) return "text-3xl";
+    if (len <= 28) return "text-2xl";
+    if (len <= 36) return "text-xl";
+    return "text-lg";
+  }
 
-    const pad = size === "spot" ? "p-12 sm:p-14" : size === "xl" ? "p-10 sm:p-12" : "p-6 sm:p-8";
+  // MD cards
+  if (len <= 18) return "text-2xl";
+  if (len <= 26) return "text-xl";
+  if (len <= 34) return "text-lg";
+  return "text-base";
+};
 
-    const imgSize =
-      size === "spot"
-        ? "w-36 h-36 sm:w-40 sm:h-40"
-        : size === "xl"
-        ? "w-32 h-32 sm:w-36 sm:h-36"
-        : "w-24 h-24 sm:w-28 sm:h-28";
+const renderExecutiveHighlightCard = (
+  o: Officer,
+  variant: "dark" | "light" = "dark"
+) => {
+  const hasPhoto = !!o.photoUrl;
+  const hasAccount = !!accountForOfficer(o.id);
 
-    const nameSize =
-      size === "spot" ? "text-4xl sm:text-5xl" : size === "xl" ? "text-3xl sm:text-4xl" : "text-2xl";
+  const card =
+    variant === "dark"
+      ? "bg-samasa-black text-white border-white/10"
+      : "bg-white text-samasa-black border-slate-200";
 
-    const tagPad = size === "spot" ? "px-6 py-3" : size === "xl" ? "px-5 py-3" : "px-4 py-2";
+  const topBar = variant === "dark" ? "bg-samasa-yellow" : "bg-samasa-blue";
 
-    const safeTopPad = hasAccount ? (size === "spot" ? "pt-16" : size === "xl" ? "pt-14" : "pt-12") : "";
+  const badgeBase =
+    variant === "dark"
+      ? "bg-white/10 border-white/10 text-white"
+      : "bg-white border-slate-200 text-slate-700 shadow-sm";
 
-    const badgeBase =
-      variant === "dark" ? "bg-white/10 border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-700";
+  // ✅ font scales for long names (horizontal has more space)
+  const nameLen = (o.name || "").trim().length;
+  const nameSize =
+    nameLen <= 18
+      ? "text-4xl"
+      : nameLen <= 28
+      ? "text-3xl"
+      : nameLen <= 40
+      ? "text-2xl"
+      : "text-xl";
 
-    return (
-      <div
-        className={`group relative overflow-hidden border rounded-[2.8rem] ${pad} ${safeTopPad} transition-all hover:-translate-y-1 hover:shadow-2xl ${card}`}
-      >
-        <div className={`absolute top-0 left-0 w-full h-2 ${topBar}`} />
+  return (
+    <div
+      className={`group relative overflow-hidden border rounded-[2.8rem] ${card}
+      p-8 sm:p-10 transition-all hover:-translate-y-1 hover:shadow-2xl`}
+    >
+      <div className={`absolute top-0 left-0 w-full h-2 ${topBar}`} />
 
-        {hasAccount && (
-          <div className="absolute top-5 left-6">
-            <div
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border ${badgeBase} text-[10px] font-black uppercase tracking-[0.25em]`}
-              title="Linked officer account"
-            >
-              <KeyRound className="w-4 h-4" />
-              Account
-            </div>
+      {/* ✅ linked icon only */}
+      {hasAccount && (
+        <div className="absolute top-5 right-6">
+          <div
+            className={`inline-flex items-center justify-center w-10 h-10 rounded-2xl border ${badgeBase}`}
+            title="Linked officer account"
+            aria-label="Linked officer account"
+          >
+            <Link2 className="w-5 h-5" />
           </div>
-        )}
+        </div>
+      )}
 
-        {isSuperAdmin && (
-          <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={() => openEdit(o)}
-              className={`p-2.5 rounded-2xl border transition-all ${
-                variant === "dark"
-                  ? "border-white/10 bg-white/5 hover:bg-white/10"
-                  : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-              }`}
-              title="Edit"
-              aria-label="Edit officer"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => removeOfficer(o.id)}
-              className={`p-2.5 rounded-2xl border transition-all ${
-                variant === "dark"
-                  ? "border-white/10 bg-white/5 hover:bg-white/10"
-                  : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-              }`}
-              title="Delete"
-              aria-label="Delete officer"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+      <div className="flex flex-col sm:flex-row gap-7 sm:gap-8 items-center sm:items-start">
+        {/* photo */}
+        <div className="shrink-0">
+          <div
+            className={`w-28 h-28 sm:w-32 sm:h-32 rounded-[2.2rem] overflow-hidden border ${
+              variant === "dark" ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
+            } flex items-center justify-center`}
+          >
+            {hasPhoto ? (
+              <img src={o.photoUrl} alt={o.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className={`w-10 h-10 rounded-2xl ${variant === "dark" ? "bg-white/10" : "bg-slate-200"}`} />
+            )}
           </div>
-        )}
+        </div>
 
-        <div className="flex flex-col items-center text-center">
-          <div className="relative mb-7">
+        {/* content */}
+        <div className="min-w-0 flex-1 text-center sm:text-left">
+          {/* position pill */}
+          <div
+            className={`inline-flex px-5 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.25em] ${
+              variant === "dark" ? "bg-samasa-yellow text-samasa-black" : "bg-samasa-blue text-white"
+            }`}
+            title={o.position}
+          >
+            <span className="line-clamp-1">{o.position}</span>
+          </div>
+
+          {/* name */}
+          <div
+            className={`mt-5 ${nameSize} font-black tracking-tighter uppercase leading-[1.0]
+            break-words whitespace-normal`}
+            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+          >
+            {o.name}
+          </div>
+
+          {/* dept */}
+          <div
+            className={`mt-3 text-[10px] font-black uppercase tracking-[0.3em] ${
+              variant === "dark" ? "text-white/60" : "text-slate-500"
+            }`}
+          >
+            {String(o.department) === String(DepartmentType.SAMASA)
+              ? "Central Board"
+              : `${deptName(o.department)} Council`}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+const renderOfficerCard = (
+  o: Officer,
+  variant: "dark" | "light" = "light",
+  size: "md" | "xl" | "spot" = "md"
+) => {
+  const hasPhoto = !!o.photoUrl;
+  const hasAccount = !!accountForOfficer(o.id);
+
+  const card =
+    variant === "dark"
+      ? "bg-samasa-black text-white border-white/10"
+      : "bg-white text-samasa-black border-slate-200";
+
+  const topBar = variant === "dark" ? "bg-samasa-yellow" : "bg-samasa-blue";
+
+  // ✅ consistent height per card size (prevents mismatch vs placeholders)
+  const minH =
+    size === "spot"
+      ? "min-h-[34rem]"
+      : size === "xl"
+      ? "min-h-[30rem]"
+      : "min-h-[26rem]";
+
+  const pad = size === "spot" ? "p-10 sm:p-12" : size === "xl" ? "p-9 sm:p-11" : "p-6 sm:p-8";
+
+  const imgSize =
+    size === "spot"
+      ? "w-36 h-36 sm:w-40 sm:h-40"
+      : size === "xl"
+      ? "w-32 h-32 sm:w-36 sm:h-36"
+      : "w-24 h-24 sm:w-28 sm:h-28";
+
+  const tagPad = size === "spot" ? "px-5 py-3" : size === "xl" ? "px-5 py-3" : "px-4 py-2";
+
+  const safeTopPad = hasAccount ? (size === "spot" ? "pt-16" : size === "xl" ? "pt-14" : "pt-12") : "";
+
+  const badgeBase =
+  variant === "dark"
+    ? "bg-white/10 border-white/10 text-white"
+    : "bg-white border-slate-200 text-slate-700 shadow-sm";
+
+
+  const nameSize = nameClassFor(o.name || "", size);
+
+  return (
+    <div
+      className={`group relative overflow-hidden border rounded-[2.8rem] ${pad} ${safeTopPad} ${minH}
+      transition-all hover:-translate-y-1 hover:shadow-2xl ${card}`}
+    >
+      <div className={`absolute top-0 left-0 w-full h-2 ${topBar}`} />
+
+      {hasAccount && (
+  <div className="absolute top-5 left-6">
+    <div
+      className={`inline-flex items-center justify-center w-10 h-10 rounded-2xl border ${badgeBase}`}
+      title="Linked officer account"
+      aria-label="Linked officer account"
+    >
+      <Link2 className="w-5 h-5" />
+    </div>
+  </div>
+)}
+
+
+      {isSuperAdmin && (
+        <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => openEdit(o)}
+            className={`p-2.5 rounded-2xl border transition-all ${
+              variant === "dark"
+                ? "border-white/10 bg-white/5 hover:bg-white/10"
+                : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+            }`}
+            title="Edit"
+            aria-label="Edit officer"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => removeOfficer(o.id)}
+            className={`p-2.5 rounded-2xl border transition-all ${
+              variant === "dark"
+                ? "border-white/10 bg-white/5 hover:bg-white/10"
+                : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+            }`}
+            title="Delete"
+            aria-label="Delete officer"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ✅ make content vertically balanced so "Not set" + real cards align better */}
+      <div className="h-full flex flex-col items-center text-center justify-between">
+        <div className="pt-2 flex flex-col items-center">
+          <div className="relative mb-6">
             <div
               className={`${imgSize} rounded-[2.2rem] overflow-hidden border ${
                 variant === "dark" ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
@@ -821,27 +996,47 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
             </div>
 
             <div
-              className={`mt-6 inline-flex ${tagPad} rounded-full text-[10px] font-black uppercase tracking-[0.25em] ${
+              className={`mt-5 inline-flex ${tagPad} rounded-full text-[10px] font-black uppercase tracking-[0.25em] ${
                 variant === "dark" ? "bg-samasa-yellow text-samasa-black" : "bg-samasa-blue text-white"
               }`}
+              title={o.position}
             >
-              {o.position}
+              <span className="max-w-[18rem] sm:max-w-[20rem] line-clamp-1">{o.position}</span>
             </div>
           </div>
 
-          <div className={`${nameSize} font-black tracking-tighter uppercase leading-tight`}>{o.name}</div>
+<div className="w-full px-3">
+  <div
+    className={`${nameSize} font-black tracking-tighter uppercase leading-[1.05] text-center`}
+    style={{
+      overflowWrap: "anywhere",
+      wordBreak: "break-word",
+    }}
+  >
+    {o.name}
+  </div>
+</div>
 
+
+
+        </div>
+
+        <div className="pb-2 w-full">
           <div
-            className={`mt-3 text-[10px] font-black uppercase tracking-[0.3em] ${
+            className={`mt-4 text-[10px] font-black uppercase tracking-[0.3em] ${
               variant === "dark" ? "text-white/60" : "text-slate-500"
-            }`}
+            } line-clamp-2`}
           >
-            {String(o.department) === String(DepartmentType.SAMASA) ? "Central Board" : `${deptName(o.department)} Council`}
+            {String(o.department) === String(DepartmentType.SAMASA)
+              ? "Central Board"
+              : `${deptName(o.department)} Council`}
           </div>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
+
 
   const executiveGrid = (
     variant: "dark" | "light",
@@ -853,20 +1048,33 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
         ? "bg-samasa-black text-white border-white/10"
         : "bg-white border-slate-200 text-slate-600";
 
-    const placeholder = (label: string) => (
-      <div className={`rounded-[2.8rem] border p-12 sm:p-14 ${boxBase}`}>
-        <div className="text-[10px] font-black uppercase tracking-[0.35em] opacity-60">{label}</div>
-        <div className="mt-4 text-2xl font-black tracking-tighter">Not set</div>
+    const placeholder = (label: string) => {
+  const boxBase =
+    variant === "dark"
+      ? "bg-samasa-black text-white border-white/10"
+      : "bg-white border-slate-200 text-slate-600";
+
+  return (
+    <div className={`rounded-[2.8rem] border p-8 sm:p-10 ${boxBase} min-h-[12rem] flex flex-col justify-between`}>
+      <div className="text-[10px] font-black uppercase tracking-[0.35em] opacity-70">{label}</div>
+      <div className="flex-1 flex items-center">
+        <div className="text-2xl sm:text-3xl font-black tracking-tight">Not set</div>
       </div>
-    );
+      <div className="h-2" />
+    </div>
+  );
+};
+
+
 
     return (
       <div className="space-y-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          {highlights.governor ? renderOfficerCard(highlights.governor, variant, "spot") : placeholder("Governor / Mayor")}
-          {highlights.vice ? renderOfficerCard(highlights.vice, variant, "spot") : placeholder("Vice Governor / Vice Mayor")}
-          {highlights.secretary ? renderOfficerCard(highlights.secretary, variant, "spot") : placeholder("Secretary General / Secretary")}
-          {highlights.auditor ? renderOfficerCard(highlights.auditor, variant, "spot") : placeholder("Auditor")}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {highlights.governor ? renderExecutiveHighlightCard(highlights.governor, variant) : placeholder("Governor / Mayor")}
+          {highlights.vice ? renderExecutiveHighlightCard(highlights.vice, variant) : placeholder("Vice Governor / Vice Mayor")}
+          {highlights.secretary ? renderExecutiveHighlightCard(highlights.secretary, variant) : placeholder("Secretary General / Secretary")}
+          {highlights.auditor ? renderExecutiveHighlightCard(highlights.auditor, variant) : placeholder("Auditor")}
         </div>
 
         {rest.length > 0 ? (
@@ -923,7 +1131,9 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
       .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
       .map((o) => ({
         id: o.id,
-        label: `${o.name} — ${o.position} (${String(o.department) === String(DepartmentType.SAMASA) ? "SAMASA" : deptName(o.department)})`,
+        label: `${o.name} — ${o.position} (${
+          String(o.department) === String(DepartmentType.SAMASA) ? "SAMASA" : deptName(o.department)
+        })`,
       }));
   }, [officers, departments]);
 
@@ -942,7 +1152,10 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
         <div className="pt-10 mb-8 flex items-start justify-between gap-6 flex-wrap">
           <div className="h-14 flex items-center">
             {!isSuperAdmin && (
-              <Link to="/" className="group inline-flex items-center gap-3 text-slate-500 hover:text-samasa-black transition-all">
+              <Link
+                to="/"
+                className="group inline-flex items-center gap-3 text-slate-500 hover:text-samasa-black transition-all"
+              >
                 <div className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center group-hover:bg-samasa-black group-hover:text-white transition-all shadow-sm">
                   <ArrowLeft size={18} />
                 </div>
@@ -954,7 +1167,9 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
           {isSuperAdmin && (
             <div className="w-full lg:w-auto">
               <div className="bg-white border border-slate-200 rounded-[2rem] p-4 sm:p-5 shadow-sm">
-                <div className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-400 mb-3 px-2">Superadmin Controls</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-400 mb-3 px-2">
+                  Superadmin Controls
+                </div>
 
                 <div className="flex flex-wrap gap-3">
                   <button
@@ -998,11 +1213,15 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
               <div className="relative">
                 <div className="inline-flex items-center gap-3 px-5 py-3 bg-white/10 border border-white/10 rounded-2xl">
                   <Star className="w-5 h-5 text-white" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/80">Central Directory</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/80">
+                    Central Directory
+                  </span>
                 </div>
 
                 <div className="mt-10">
-                  <div className="text-6xl sm:text-7xl md:text-8xl font-black tracking-tighter leading-[0.9]">SAMASA</div>
+                  <div className="text-6xl sm:text-7xl md:text-8xl font-black tracking-tighter leading-[0.9]">
+                    SAMASA
+                  </div>
                   <div className="mt-3 inline-flex bg-samasa-yellow text-samasa-black px-5 py-3 rounded-2xl font-black italic tracking-tight">
                     CENTRAL BOARD
                   </div>
@@ -1213,7 +1432,9 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
                     </label>
                     <label className="w-full px-5 py-4 rounded-2xl bg-white border border-slate-200 cursor-pointer flex items-center gap-3 hover:bg-slate-50 transition-all">
                       <ImageIcon className="w-5 h-5 text-samasa-blue" />
-                      <span className="text-sm font-semibold text-slate-600">{form.photoUrl ? "Change photo" : "Upload photo"}</span>
+                      <span className="text-sm font-semibold text-slate-600">
+                        {form.photoUrl ? "Change photo" : "Upload photo"}
+                      </span>
                       <input type="file" accept="image/*" onChange={onPickPhoto} className="hidden" />
                     </label>
                   </div>
@@ -1312,7 +1533,9 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
                           <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
                             {locked ? "Locked" : "Department"}
                           </div>
-                          <div className="text-xl font-black text-samasa-black truncate">{locked ? "SAMASA" : d.name}</div>
+                          <div className="text-xl font-black text-samasa-black truncate">
+                            {locked ? "SAMASA" : d.name}
+                          </div>
                           <div className="mt-2 text-xs font-semibold text-slate-400">ID: {String(d.id)}</div>
                         </div>
 
@@ -1326,7 +1549,9 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
                               )
                             }
                             className={`px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.25em] border transition-all ${
-                              d.active ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-slate-50 text-slate-600 border-slate-200"
+                              d.active
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                                : "bg-slate-50 text-slate-600 border-slate-200"
                             } ${locked ? "opacity-60 pointer-events-none" : ""}`}
                           >
                             {d.active ? "Active" : "Inactive"}
@@ -1340,7 +1565,9 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
                               disabled={locked}
                               onChange={(e) =>
                                 setDeptDraft((prev) =>
-                                  prev.map((x) => (String(x.id) === String(d.id) ? { ...x, order: Number(e.target.value) } : x))
+                                  prev.map((x) =>
+                                    String(x.id) === String(d.id) ? { ...x, order: Number(e.target.value) } : x
+                                  )
                                 )
                               }
                               className="w-20 px-3 py-2 rounded-xl bg-white border border-slate-200 font-black text-[10px] uppercase tracking-[0.25em] text-slate-700 focus:outline-none"
@@ -1411,7 +1638,9 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
               <div className="bg-slate-50 border border-slate-100 rounded-[2.5rem] p-6">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-400">{acctEditing ? "Edit Account" : "Create Account"}</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-400">
+                      {acctEditing ? "Edit Account" : "Create Account"}
+                    </div>
                     <div className="mt-2 text-2xl font-black text-samasa-black tracking-tighter flex items-center gap-2">
                       <KeyRound className="w-5 h-5 text-samasa-blue" />
                       Officer Login Account
@@ -1497,7 +1726,9 @@ const Officers: React.FC<OfficersProps> = ({ currentUser }) => {
                       type="button"
                       onClick={() => setAcctForm((p) => ({ ...p, active: !p.active }))}
                       className={`px-5 py-4 rounded-2xl border font-black text-[10px] uppercase tracking-[0.25em] transition-all ${
-                        acctForm.active ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-slate-50 text-slate-600 border-slate-200"
+                        acctForm.active
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                          : "bg-slate-50 text-slate-600 border-slate-200"
                       }`}
                     >
                       {acctForm.active ? "Active" : "Disabled"}

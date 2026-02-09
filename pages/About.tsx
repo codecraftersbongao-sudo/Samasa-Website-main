@@ -1,3 +1,4 @@
+// src/pages/About.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { User, UserRole } from "../types";
@@ -29,6 +30,16 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+// ✅ Firestore
+import { db } from "../firebase/firebaseConfig";
+import {
+  doc,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
+  getDoc,
+} from "firebase/firestore";
+
 type Tab = "History" | "Achievements";
 
 type Milestone = {
@@ -42,9 +53,9 @@ type Achievement = {
   title: string;
   summary: string;
   lead?: string;
-  date?: string; // optional (YYYY-MM-DD or human readable)
+  date?: string;
   tags?: string[];
-  evidenceUrl?: string; // optional link
+  evidenceUrl?: string;
   featured?: boolean;
 };
 
@@ -69,7 +80,8 @@ type AboutContent = {
   };
 };
 
-const STORAGE_KEY = "samasa_about_content_v4";
+// ✅ Firestore path: site_content/about
+const ABOUT_DOC_REF = doc(db, "site_content", "about");
 
 const DEFAULT_CONTENT: AboutContent = {
   history: {
@@ -153,20 +165,6 @@ function safeMergeContent(parsed: any): AboutContent {
         : DEFAULT_CONTENT.achievements.items,
     },
   };
-}
-
-function loadContent(): AboutContent {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_CONTENT;
-    return safeMergeContent(JSON.parse(raw));
-  } catch {
-    return DEFAULT_CONTENT;
-  }
-}
-
-function saveContent(content: AboutContent) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(content));
 }
 
 const canEditUser = (u: User | null) =>
@@ -303,9 +301,10 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
   const [tab, setTab] = useState<Tab>("History");
   const canEdit = canEditUser(currentUser);
 
-  const [content, setContent] = useState<AboutContent>(() =>
-    typeof window === "undefined" ? DEFAULT_CONTENT : loadContent()
-  );
+  // Firestore-loaded content
+  const [content, setContent] = useState<AboutContent>(DEFAULT_CONTENT);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // ======= stats (simple, page-level) =======
   const pageStats = useMemo(() => {
@@ -315,9 +314,7 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
       content.achievements.items.map((a) => (a.lead ?? "").trim()).filter(Boolean)
     ).size;
 
-    // optional: count years from timeline if you want
     const activeYears = Math.max(1, new Date().getFullYear() - 2015 + 1);
-
     return { achievementsCount, featuredCount, leads, activeYears };
   }, [content.achievements.items]);
 
@@ -327,7 +324,8 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
   const [editOpen, setEditOpen] = useState(false);
   const [editTab, setEditTab] = useState<Tab>("History");
   const [preview, setPreview] = useState(true);
-  const [draft, setDraft] = useState<AboutContent>(content);
+  const [draft, setDraft] = useState<AboutContent>(DEFAULT_CONTENT);
+
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | null>(null);
 
@@ -338,6 +336,55 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 2200);
   };
+
+  // =========================
+  // ✅ Firestore: subscribe
+  // =========================
+  useEffect(() => {
+    setLoading(true);
+    setLoadError(null);
+
+    const unsub = onSnapshot(
+      ABOUT_DOC_REF,
+      async (snap) => {
+        try {
+          if (!snap.exists()) {
+            // If missing, initialize once (safe to do for everyone, but better for admins)
+            // We'll initialize only if the doc truly doesn't exist.
+            // If you want only admins to initialize, wrap with canEdit.
+            await setDoc(
+              ABOUT_DOC_REF,
+              {
+                content: DEFAULT_CONTENT,
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            );
+            setContent(DEFAULT_CONTENT);
+          } else {
+            const data = snap.data();
+            const merged = safeMergeContent(data?.content);
+            setContent(merged);
+          }
+          setLoading(false);
+        } catch (e: any) {
+          setLoading(false);
+          setLoadError(e?.message || "Failed to load About content.");
+        }
+      },
+      (err) => {
+        setLoading(false);
+        setLoadError(err?.message || "Failed to subscribe to About content.");
+      }
+    );
+
+    return () => unsub();
+  }, []);
+
+  // Keep draft in sync when editor is not open (so realtime updates don't fight the editor)
+  useEffect(() => {
+    if (!editOpen) setDraft(content);
+  }, [content, editOpen]);
 
   const openEditor = (which: Tab) => {
     if (!canEdit) return;
@@ -356,10 +403,28 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
     if (ok) setEditOpen(false);
   };
 
-  const applySave = () => {
-    setContent(draft);
-    saveContent(draft);
-    showToast("Saved changes");
+  // ✅ Firestore save
+  const applySave = async () => {
+    try {
+      // Optional: quick check to reduce accidental overwrite
+      // (If you want stronger conflict control, we can add updatedAt compare)
+      await setDoc(
+        ABOUT_DOC_REF,
+        {
+          content: draft,
+          updatedAt: serverTimestamp(),
+          updatedBy: currentUser
+            ? { id: currentUser.id, name: currentUser.name, role: currentUser.role }
+            : null,
+        },
+        { merge: true }
+      );
+
+      showToast("Saved changes");
+      // content will update via onSnapshot
+    } catch (e: any) {
+      window.alert(e?.message || "Save failed.");
+    }
   };
 
   const resetToDefault = () => {
@@ -472,7 +537,7 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
   };
 
   // =========================
-  // Draft mutators: Achievements (GENERAL)
+  // Draft mutators: Achievements
   // =========================
   const addAchievement = () => {
     const id = `achv-${Math.random().toString(16).slice(2, 10)}`;
@@ -564,6 +629,26 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
           </div>
         )}
       </div>
+
+      {/* Optional loading/error banner */}
+      {(loading || loadError) && (
+        <div className="mb-8">
+          <div
+            className={cx(
+              "rounded-2xl border p-4 text-sm font-semibold",
+              loadError
+                ? "bg-red-50 border-red-100 text-red-700"
+                : "bg-slate-50 border-slate-200 text-slate-600"
+            )}
+          >
+            {loadError ? (
+              <>Failed to load About content: {loadError}</>
+            ) : (
+              <>Loading About content…</>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Hero */}
       <div className="relative mb-12">
@@ -670,8 +755,6 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
                   <BookOpen className="w-10 h-10 mr-6 text-samasa-blue" />
                   {content.history.heading}
                 </h2>
-
-                
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
@@ -714,7 +797,6 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
                   <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                     {content.timeline.rangeText}
                   </div>
-                  
                 </div>
               </div>
 
@@ -756,8 +838,6 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
                 </div>
 
                 <div className="flex flex-col gap-3 items-stretch md:items-end">
-                 
-
                   <div className="bg-slate-50 border border-slate-100 rounded-[2.5rem] p-8 min-w-[260px]">
                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                       Achievements Count
@@ -878,7 +958,7 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
         </button>
       )}
 
-      {/* Editor Modal (Improved UX) */}
+      {/* Editor Modal */}
       {editOpen && canEdit && (
         <div className="fixed inset-0 z-[100] bg-samasa-black/80 backdrop-blur-md">
           <button
@@ -997,7 +1077,7 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
                 {/* Left editor */}
                 <div className={cx("flex-1 overflow-y-auto", preview ? "w-1/2" : "w-full")}>
                   <div className="p-5 md:p-8 space-y-8">
-                    {/* ====== HISTORY EDITOR (same as before) ====== */}
+                    {/* ====== HISTORY EDITOR ====== */}
                     {editTab === "History" && (
                       <>
                         <section className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 md:p-7">
@@ -1202,7 +1282,7 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
                       </>
                     )}
 
-                    {/* ====== ACHIEVEMENTS EDITOR (GENERAL) ====== */}
+                    {/* ====== ACHIEVEMENTS EDITOR ====== */}
                     {editTab === "Achievements" && (
                       <>
                         <section className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 md:p-7">
@@ -1368,8 +1448,7 @@ const About: React.FC<{ currentUser: User | null }> = ({ currentUser }) => {
                     <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-start gap-3">
                       <ShieldCheck className="w-5 h-5 text-samasa-blue mt-0.5" />
                       <div className="text-sm font-semibold text-slate-600">
-                        Saved to <span className="font-black">localStorage</span> (per browser) for now.
-                        For shared editing across officer accounts, connect this to Firestore/Supabase and I’ll wire role rules.
+                        Saved to <span className="font-black">Firestore</span> and shared across accounts.
                       </div>
                     </div>
                   </div>
