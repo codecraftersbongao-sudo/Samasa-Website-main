@@ -27,7 +27,8 @@ interface AdminDashboardProps {
   user: User;
 }
 
-type AdminSection = "Hero" | "Vision" | "Login" | "Sections" | "Footer";
+// ✅ Vision removed
+type AdminSection = "Hero" | "Login" | "Sections" | "Footer";
 
 const DEFAULT_LANDING_CONTENT: LandingPageContent = {
   heroBackgroundUrl: "",
@@ -35,6 +36,8 @@ const DEFAULT_LANDING_CONTENT: LandingPageContent = {
   heroHeadingHighlight: "STRONG",
   heroSubtitle: "Public landing subtitle…",
 
+  // Keep these defaults if your LandingPageContent type still includes them
+  // (so Firestore doc stays compatible), but we won't edit them here.
   visionImageUrl: "",
   visionTitle: "Vision Title",
   visionBody: "Vision body…",
@@ -239,7 +242,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         return;
       }
 
-      // optional: cap for UX (Cloudinary can handle more, but keep it reasonable)
+      // optional: cap for UX
       if (file.size > 8 * 1024 * 1024) {
         showToast({
           type: "error",
@@ -283,7 +286,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const menu: { key: AdminSection; label: string; hint: string }[] = useMemo(
     () => [
       { key: "Hero", label: "Hero Section", hint: "Landing headline + hero image" },
-      { key: "Vision", label: "Vision Section", hint: "Vision text + image + cards" },
       { key: "Login", label: "Login Page", hint: "Left panel background image" },
       { key: "Sections", label: "Projects & Budget", hint: "Public section titles" },
       { key: "Footer", label: "Footer", hint: "Footer text" },
@@ -347,9 +349,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
               <div className="flex-1">
                 <div className="text-sm font-black text-samasa-black">{toast.title}</div>
                 {toast.message ? (
-                  <div className="mt-1 text-xs font-semibold text-slate-500">
-                    {toast.message}
-                  </div>
+                  <div className="mt-1 text-xs font-semibold text-slate-500">{toast.message}</div>
                 ) : null}
               </div>
 
@@ -383,7 +383,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                     Reset landing content?
                   </div>
                   <div className="mt-2 text-sm font-semibold text-slate-500">
-                    This will overwrite all landing page fields back to defaults. You can still edit again afterwards.
+                    This will overwrite all landing page fields back to defaults. You can still edit
+                    again afterwards.
                   </div>
                 </div>
                 <button
@@ -409,7 +410,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                 onClick={reset}
                 className="px-6 py-4 rounded-2xl bg-rose-600 text-white font-black text-[10px] uppercase tracking-[0.25em] hover:bg-rose-700 disabled:opacity-60 inline-flex items-center justify-center gap-3"
               >
-                {resetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                {resetting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-4 h-4" />
+                )}
                 Reset Now
               </button>
             </div>
@@ -473,11 +478,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
               >
                 <div className="text-left">
                   <div className="text-[10px] font-black uppercase tracking-widest">{m.label}</div>
-                  <div className={`mt-1 text-[11px] font-semibold ${active === m.key ? "text-white/70" : "text-slate-400"}`}>
+                  <div
+                    className={`mt-1 text-[11px] font-semibold ${
+                      active === m.key ? "text-white/70" : "text-slate-400"
+                    }`}
+                  >
                     {m.hint}
                   </div>
                 </div>
-                <ChevronRight className={`w-4 h-4 transition-all group-hover:translate-x-1 ${active === m.key ? "opacity-100" : "opacity-50"}`} />
+                <ChevronRight
+                  className={`w-4 h-4 transition-all group-hover:translate-x-1 ${
+                    active === m.key ? "opacity-100" : "opacity-50"
+                  }`}
+                />
               </button>
             ))}
           </nav>
@@ -542,7 +555,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                     }`}
                   >
                     <div className="text-[10px] font-black uppercase tracking-widest">{m.key}</div>
-                    <div className={`mt-1 text-[11px] font-semibold ${active === m.key ? "text-white/70" : "text-slate-400"}`}>
+                    <div
+                      className={`mt-1 text-[11px] font-semibold ${
+                        active === m.key ? "text-white/70" : "text-slate-400"
+                      }`}
+                    >
                       {m.label}
                     </div>
                   </button>
@@ -616,7 +633,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                         <input
                           className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
                           value={draft.heroBackgroundUrl}
-                          onChange={(e) => setDraft((p) => ({ ...p, heroBackgroundUrl: e.target.value }))}
+                          onChange={(e) =>
+                            setDraft((p) => ({ ...p, heroBackgroundUrl: e.target.value }))
+                          }
                           placeholder="https://…"
                         />
                       </div>
@@ -628,7 +647,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       ) : (
                         <ImageIcon className="w-4 h-4" />
                       )}
-                      {uploadingField === "heroBackgroundUrl" ? "Uploading…" : "Upload Image (Cloudinary)"}
+                      {uploadingField === "heroBackgroundUrl"
+                        ? "Uploading…"
+                        : "Upload Image (Cloudinary)"}
                       <input
                         type="file"
                         accept="image/*"
@@ -647,7 +668,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       <input
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
                         value={draft.heroHeadingTop}
-                        onChange={(e) => setDraft((p) => ({ ...p, heroHeadingTop: e.target.value }))}
+                        onChange={(e) =>
+                          setDraft((p) => ({ ...p, heroHeadingTop: e.target.value }))
+                        }
                       />
                     </div>
                     <div>
@@ -671,109 +694,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                     <textarea
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold min-h-[120px]"
                       value={draft.heroSubtitle}
-                      onChange={(e) => setDraft((p) => ({ ...p, heroSubtitle: e.target.value }))}
+                      onChange={(e) =>
+                        setDraft((p) => ({ ...p, heroSubtitle: e.target.value }))
+                      }
                     />
-                  </div>
-                </div>
-              )}
-
-              {active === "Vision" && (
-                <div className="space-y-6">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Vision Section
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">
-                      Vision Image URL
-                    </label>
-                    <div className="relative">
-                      <LinkIcon className="w-4 h-4 text-slate-400 absolute left-5 top-1/2 -translate-y-1/2" />
-                      <input
-                        className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
-                        value={draft.visionImageUrl}
-                        onChange={(e) => setDraft((p) => ({ ...p, visionImageUrl: e.target.value }))}
-                        placeholder="https://…"
-                      />
-                    </div>
-
-                    <label className="mt-3 w-full px-6 py-4 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-500 inline-flex items-center justify-center gap-3 cursor-pointer hover:bg-slate-50 transition-all">
-                      {uploadingField === "visionImageUrl" ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <ImageIcon className="w-4 h-4" />
-                      )}
-                      {uploadingField === "visionImageUrl" ? "Uploading…" : "Upload Image (Cloudinary)"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleImagePick(e, "visionImageUrl")}
-                        disabled={Boolean(uploadingField)}
-                      />
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">
-                      Vision Title
-                    </label>
-                    <input
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
-                      value={draft.visionTitle}
-                      onChange={(e) => setDraft((p) => ({ ...p, visionTitle: e.target.value }))}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">
-                      Vision Body
-                    </label>
-                    <textarea
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold min-h-[120px]"
-                      value={draft.visionBody}
-                      onChange={(e) => setDraft((p) => ({ ...p, visionBody: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">
-                        Card 1 Title
-                      </label>
-                      <input
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
-                        value={draft.visionCard1Title}
-                        onChange={(e) => setDraft((p) => ({ ...p, visionCard1Title: e.target.value }))}
-                      />
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2 mt-4">
-                        Card 1 Body
-                      </label>
-                      <textarea
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold min-h-[90px]"
-                        value={draft.visionCard1Body}
-                        onChange={(e) => setDraft((p) => ({ ...p, visionCard1Body: e.target.value }))}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">
-                        Card 2 Title
-                      </label>
-                      <input
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
-                        value={draft.visionCard2Title}
-                        onChange={(e) => setDraft((p) => ({ ...p, visionCard2Title: e.target.value }))}
-                      />
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2 mt-4">
-                        Card 2 Body
-                      </label>
-                      <textarea
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold min-h-[90px]"
-                        value={draft.visionCard2Body}
-                        onChange={(e) => setDraft((p) => ({ ...p, visionCard2Body: e.target.value }))}
-                      />
-                    </div>
                   </div>
                 </div>
               )}
@@ -793,7 +717,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       <input
                         className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
                         value={draft.loginBackgroundUrl}
-                        onChange={(e) => setDraft((p) => ({ ...p, loginBackgroundUrl: e.target.value }))}
+                        onChange={(e) =>
+                          setDraft((p) => ({ ...p, loginBackgroundUrl: e.target.value }))
+                        }
                         placeholder="https://…"
                       />
                     </div>
@@ -804,7 +730,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       ) : (
                         <ImageIcon className="w-4 h-4" />
                       )}
-                      {uploadingField === "loginBackgroundUrl" ? "Uploading…" : "Upload Login Background (Cloudinary)"}
+                      {uploadingField === "loginBackgroundUrl"
+                        ? "Uploading…"
+                        : "Upload Login Background (Cloudinary)"}
                       <input
                         type="file"
                         accept="image/*"
@@ -815,7 +743,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                     </label>
 
                     <div className="mt-3 text-xs text-slate-400 font-semibold">
-                      Note: Login keeps the dark theme (grayscale + overlay) even after changing the image.
+                      Note: Login keeps the dark theme (grayscale + overlay) even after changing the
+                      image.
                     </div>
                   </div>
                 </div>
@@ -835,7 +764,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       <input
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
                         value={draft.projectsEyebrow}
-                        onChange={(e) => setDraft((p) => ({ ...p, projectsEyebrow: e.target.value }))}
+                        onChange={(e) =>
+                          setDraft((p) => ({ ...p, projectsEyebrow: e.target.value }))
+                        }
                       />
                     </div>
 
@@ -846,7 +777,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       <input
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
                         value={draft.projectsTitle}
-                        onChange={(e) => setDraft((p) => ({ ...p, projectsTitle: e.target.value }))}
+                        onChange={(e) =>
+                          setDraft((p) => ({ ...p, projectsTitle: e.target.value }))
+                        }
                       />
                     </div>
 
@@ -857,7 +790,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       <input
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
                         value={draft.budgetEyebrow}
-                        onChange={(e) => setDraft((p) => ({ ...p, budgetEyebrow: e.target.value }))}
+                        onChange={(e) =>
+                          setDraft((p) => ({ ...p, budgetEyebrow: e.target.value }))
+                        }
                       />
                     </div>
 
@@ -868,7 +803,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       <input
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
                         value={draft.budgetTitle}
-                        onChange={(e) => setDraft((p) => ({ ...p, budgetTitle: e.target.value }))}
+                        onChange={(e) =>
+                          setDraft((p) => ({ ...p, budgetTitle: e.target.value }))
+                        }
                       />
                     </div>
                   </div>
@@ -889,7 +826,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       <input
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
                         value={draft.footerLeft}
-                        onChange={(e) => setDraft((p) => ({ ...p, footerLeft: e.target.value }))}
+                        onChange={(e) =>
+                          setDraft((p) => ({ ...p, footerLeft: e.target.value }))
+                        }
                       />
                     </div>
 
@@ -900,7 +839,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       <input
                         className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold"
                         value={draft.footerRight}
-                        onChange={(e) => setDraft((p) => ({ ...p, footerRight: e.target.value }))}
+                        onChange={(e) =>
+                          setDraft((p) => ({ ...p, footerRight: e.target.value }))
+                        }
                       />
                     </div>
                   </div>
@@ -980,29 +921,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-[3rem] sm:rounded-[4rem] border border-slate-100 shadow-sm overflow-hidden">
-                <div className="p-8 sm:p-10 border-b border-slate-100">
-                  <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
-                    Preview
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black tracking-tighter text-samasa-black">
-                    Vision Image
-                  </div>
-                </div>
-                <div className="p-8 sm:p-10">
-                  <div className="aspect-[4/5] rounded-[2.5rem] sm:rounded-[3rem] overflow-hidden border border-slate-100 bg-slate-50 relative">
-                    {draft.visionImageUrl ? (
-                      <img
-                        src={draft.visionImageUrl}
-                        alt="Vision Preview"
-                        className="w-full h-full object-cover grayscale"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200" />
-                    )}
-                  </div>
-                </div>
-              </div>
+              {/* ✅ Vision preview removed */}
             </div>
           </div>
 
