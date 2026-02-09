@@ -29,6 +29,8 @@ import {
   Coins,
   CheckCircle2,
   CircleDashed,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 // ✅ Firestore
@@ -116,8 +118,8 @@ async function uploadToCloudinary(file: File, folder: string) {
     file.type === "application/pdf"
       ? "raw"
       : file.type.startsWith("image/")
-        ? "image"
-        : "auto";
+      ? "image"
+      : "auto";
 
   const form = new FormData();
   form.append("file", file);
@@ -264,13 +266,125 @@ const FALLBACK_PUBLIC_USER: User = {
   department: (("SAMASA" as any) as any),
 } as any;
 
+// ==============================
+// Pagination helpers
+// ==============================
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+function PaginationBar(props: {
+  page: number; // 1-based
+  totalPages: number;
+  onPage: (p: number) => void;
+  compact?: boolean;
+}) {
+  const { page, totalPages, onPage, compact } = props;
+  if (totalPages <= 1) return null;
+
+  const btnBase =
+    "px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all active:scale-95";
+  const btnDisabled = "opacity-40 cursor-not-allowed";
+  const btnNormal = "bg-white border-slate-200 text-slate-500 hover:bg-slate-50";
+  const btnActive = "bg-samasa-black border-samasa-black text-samasa-yellow";
+  const wrap = compact
+    ? "mt-6 flex items-center justify-center gap-2"
+    : "mt-10 flex items-center justify-center gap-2";
+
+  // small window of pages around current
+  const windowSize = 5;
+  const half = Math.floor(windowSize / 2);
+  let start = Math.max(1, page - half);
+  let end = Math.min(totalPages, start + windowSize - 1);
+  start = Math.max(1, end - windowSize + 1);
+
+  const pages: number[] = [];
+  for (let p = start; p <= end; p++) pages.push(p);
+
+  return (
+    <div className={wrap}>
+      <button
+        type="button"
+        onClick={() => onPage(clamp(page - 1, 1, totalPages))}
+        disabled={page <= 1}
+        className={[
+          btnBase,
+          btnNormal,
+          page <= 1 ? btnDisabled : "",
+          "inline-flex items-center gap-2",
+        ].join(" ")}
+      >
+        <ChevronLeft className="w-4 h-4" />
+        Prev
+      </button>
+
+      {start > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => onPage(1)}
+            className={[btnBase, btnNormal].join(" ")}
+          >
+            1
+          </button>
+          {start > 2 && <span className="text-slate-300 font-black text-xs px-1">…</span>}
+        </>
+      )}
+
+      {pages.map((p) => (
+        <button
+          key={p}
+          type="button"
+          onClick={() => onPage(p)}
+          className={[btnBase, p === page ? btnActive : btnNormal].join(" ")}
+          aria-current={p === page ? "page" : undefined}
+        >
+          {p}
+        </button>
+      ))}
+
+      {end < totalPages && (
+        <>
+          {end < totalPages - 1 && (
+            <span className="text-slate-300 font-black text-xs px-1">…</span>
+          )}
+          <button
+            type="button"
+            onClick={() => onPage(totalPages)}
+            className={[btnBase, btnNormal].join(" ")}
+          >
+            {totalPages}
+          </button>
+        </>
+      )}
+
+      <button
+        type="button"
+        onClick={() => onPage(clamp(page + 1, 1, totalPages))}
+        disabled={page >= totalPages}
+        className={[
+          btnBase,
+          btnNormal,
+          page >= totalPages ? btnDisabled : "",
+          "inline-flex items-center gap-2",
+        ].join(" ")}
+      >
+        Next
+        <ChevronRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 const LegislativeHub: React.FC<LegislativeHubProps> = ({
   user = FALLBACK_PUBLIC_USER,
   isEditable,
   hideHeader = false,
-  initialTab = "RESOURCES",
+  initialTab,
 }) => {
   const isEmbed = hideHeader;
+
+  // ✅ Landing page request: show Projects tab first (unless parent explicitly overrides)
+  const resolvedInitialTab: HubTab = initialTab ?? "PROJECTS";
+
 
   // ✅ Permissions
   const isSuper = user?.role === UserRole.SUPERADMIN;
@@ -281,8 +395,23 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
   const canManage = isEditable ?? isSuper;
 
   // ✅ tab
-  const [activeTab, setActiveTab] = useState<HubTab>(() => initialTab);
-  useEffect(() => setActiveTab(initialTab), [initialTab]);
+  const [activeTab, setActiveTab] = useState<HubTab>(() => resolvedInitialTab);
+  useEffect(() => setActiveTab(resolvedInitialTab), [resolvedInitialTab]);
+
+  // ✅ Pagination rules:
+  // - normal pages: show 5 per page
+  // - landing embed: show only 3 (recent) per page (still paginated, but default expectation is "only 3 recent")
+  const PER_PAGE = isEmbed ? 3 : 5;
+
+  // 1-based current pages
+  const [proposalPage, setProposalPage] = useState(1);
+  const [projectPage, setProjectPage] = useState(1);
+
+  // reset page when switching tabs
+  useEffect(() => {
+    if (activeTab === "PROJECTS") setProjectPage(1);
+    else setProposalPage(1);
+  }, [activeTab]);
 
   // ✅ Firestore data
   const [proposals, setProposals] = useState<ProposalWithMedia[]>([]);
@@ -295,18 +424,14 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
   const [createType, setCreateType] = useState<CreateType>("PROPOSAL");
   const [savingCreate, setSavingCreate] = useState(false);
 
-  const [selectedProposal, setSelectedProposal] =
-    useState<ProposalWithMedia | null>(null);
-  const [selectedProject, setSelectedProject] =
-    useState<ProjectWithMedia | null>(null);
+  const [selectedProposal, setSelectedProposal] = useState<ProposalWithMedia | null>(null);
+  const [selectedProject, setSelectedProject] = useState<ProjectWithMedia | null>(null);
 
   // ==========
   // CREATE: Proposal form
   // ==========
   const [pTitle, setPTitle] = useState("");
-  const [pCategory, setPCategory] = useState<ProposalCategory>(
-    ProposalCategory.RESOURCES
-  );
+  const [pCategory, setPCategory] = useState<ProposalCategory>(ProposalCategory.RESOURCES);
   const [pNarrative, setPNarrative] = useState("");
   const [pProponent, setPProponent] = useState<string>(getUserDisplayName(user));
   const [pPdfName, setPPdfName] = useState<string>("");
@@ -339,18 +464,14 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
   const [savingProposalEdit, setSavingProposalEdit] = useState(false);
 
   const [ppTitle, setPpTitle] = useState("");
-  const [ppCategory, setPpCategory] = useState<ProposalCategory>(
-    ProposalCategory.RESOURCES
-  );
+  const [ppCategory, setPpCategory] = useState<ProposalCategory>(ProposalCategory.RESOURCES);
   const [ppNarrative, setPpNarrative] = useState("");
   const [ppProponent, setPpProponent] = useState("");
   const [ppStatus, setPpStatus] = useState<string>("REVIEW");
 
   const [ppPdfName, setPpPdfName] = useState("");
   const [ppPdfUrl, setPpPdfUrl] = useState("");
-  const [ppPdfPublicId, setPpPdfPublicId] = useState<string | undefined>(
-    undefined
-  );
+  const [ppPdfPublicId, setPpPdfPublicId] = useState<string | undefined>(undefined);
   const [ppPdfFile, setPpPdfFile] = useState<File | null>(null);
 
   // ==========
@@ -369,16 +490,12 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
   const [epObjectives, setEpObjectives] = useState<string>("");
 
   const [epBannerUrl, setEpBannerUrl] = useState<string>("");
-  const [epBannerPublicId, setEpBannerPublicId] = useState<string | undefined>(
-    undefined
-  );
+  const [epBannerPublicId, setEpBannerPublicId] = useState<string | undefined>(undefined);
   const [epBannerFile, setEpBannerFile] = useState<File | null>(null);
 
   const [epPdfName, setEpPdfName] = useState<string>("");
   const [epPdfUrl, setEpPdfUrl] = useState<string>("");
-  const [epPdfPublicId, setEpPdfPublicId] = useState<string | undefined>(
-    undefined
-  );
+  const [epPdfPublicId, setEpPdfPublicId] = useState<string | undefined>(undefined);
   const [epPdfFile, setEpPdfFile] = useState<File | null>(null);
 
   // ==========
@@ -523,7 +640,7 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
   }, []);
 
   // ==============================
-  // Derived lists
+  // Derived lists (filtered)
   // ==============================
   const filteredProposals = useMemo(() => {
     const map: Record<HubTab, ProposalCategory | null> = {
@@ -536,6 +653,41 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
     if (!cat) return [];
     return proposals.filter((p) => (p as any).category === cat);
   }, [activeTab, proposals]);
+
+  // ==============================
+  // Pagination (client-side)
+  // ==============================
+  // Projects pagination
+  const totalProjectPages = useMemo(() => {
+    const total = projects.length;
+    return Math.max(1, Math.ceil(total / PER_PAGE));
+  }, [projects.length, PER_PAGE]);
+
+  useEffect(() => {
+    setProjectPage((p) => clamp(p, 1, totalProjectPages));
+  }, [totalProjectPages]);
+
+  const pagedProjects = useMemo(() => {
+    const start = (projectPage - 1) * PER_PAGE;
+    const end = start + PER_PAGE;
+    return projects.slice(start, end);
+  }, [projects, projectPage, PER_PAGE]);
+
+  // Proposals pagination (after category filter)
+  const totalProposalPages = useMemo(() => {
+    const total = filteredProposals.length;
+    return Math.max(1, Math.ceil(total / PER_PAGE));
+  }, [filteredProposals.length, PER_PAGE]);
+
+  useEffect(() => {
+    setProposalPage((p) => clamp(p, 1, totalProposalPages));
+  }, [totalProposalPages]);
+
+  const pagedProposals = useMemo(() => {
+    const start = (proposalPage - 1) * PER_PAGE;
+    const end = start + PER_PAGE;
+    return filteredProposals.slice(start, end);
+  }, [filteredProposals, proposalPage, PER_PAGE]);
 
   // ==============================
   // Create modal open/close/reset
@@ -1330,122 +1482,132 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
               </p>
             </div>
           ) : (
-            projects.map((project) => (
-              <div
-                key={(project as any).id}
-                className="bg-white rounded-[3.5rem] overflow-hidden border border-slate-200 shadow-sm flex flex-col lg:flex-row hover:shadow-2xl transition-all group relative"
-              >
-                {canManage && (
-                  <button
-                    onClick={(e) => deleteProject((project as any).id, e)}
-                    className="absolute top-6 right-6 z-10 p-3 bg-white/95 backdrop-blur rounded-full text-slate-300 hover:text-samasa-red shadow-lg transition-all"
-                    aria-label="Delete project"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                )}
+            <>
+              {pagedProjects.map((project) => (
+                <div
+                  key={(project as any).id}
+                  className="bg-white rounded-[3.5rem] overflow-hidden border border-slate-200 shadow-sm flex flex-col lg:flex-row hover:shadow-2xl transition-all group relative"
+                >
+                  {canManage && (
+                    <button
+                      onClick={(e) => deleteProject((project as any).id, e)}
+                      className="absolute top-6 right-6 z-10 p-3 bg-white/95 backdrop-blur rounded-full text-slate-300 hover:text-samasa-red shadow-lg transition-all"
+                      aria-label="Delete project"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
 
-                <div className="lg:w-1/2 h-80 lg:h-auto relative overflow-hidden">
-                  <img
-                    src={(project as any).bannerImage}
-                    alt={(project as any).title}
-                    className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                  />
-                  <div
-                    className={[
-                      "absolute top-8 left-8 inline-flex items-center px-6 py-2.5 rounded-full",
-                      "text-[10px] font-black uppercase tracking-widest shadow-xl",
-                      getProjectStatusColor((project as any).status),
-                    ].join(" ")}
-                  >
-                    {getProjectStatusIcon((project as any).status)}
-                    {(project as any).status}
-                  </div>
-                </div>
-
-                <div className="lg:w-1/2 p-12 lg:p-16 flex flex-col justify-between relative bg-white">
-                  <div className="absolute top-0 right-0 p-10 opacity-[0.04] pointer-events-none">
-                    <Target className="w-28 h-28 text-samasa-black" />
+                  <div className="lg:w-1/2 h-80 lg:h-auto relative overflow-hidden">
+                    <img
+                      src={(project as any).bannerImage}
+                      alt={(project as any).title}
+                      className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                    />
+                    <div
+                      className={[
+                        "absolute top-8 left-8 inline-flex items-center px-6 py-2.5 rounded-full",
+                        "text-[10px] font-black uppercase tracking-widest shadow-xl",
+                        getProjectStatusColor((project as any).status),
+                      ].join(" ")}
+                    >
+                      {getProjectStatusIcon((project as any).status)}
+                      {(project as any).status}
+                    </div>
                   </div>
 
-                  <div>
-                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-6 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] pr-14">
-                      <span className="flex items-center">
-                        <Calendar className="w-4 h-4 mr-2 text-samasa-red" />
-                        {(project as any).timeline}
-                      </span>
-                      <span className="flex items-center">
-                        <UserCircle className="w-4 h-4 mr-2 text-samasa-blue" />
-                        {(project as any).inCharge}
-                      </span>
-
-                      {(project as any).pdfUrl && (
-                        <span className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-50 border border-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                          <FileText className="w-4 h-4" />
-                          PDF
-                        </span>
-                      )}
+                  <div className="lg:w-1/2 p-12 lg:p-16 flex flex-col justify-between relative bg-white">
+                    <div className="absolute top-0 right-0 p-10 opacity-[0.04] pointer-events-none">
+                      <Target className="w-28 h-28 text-samasa-black" />
                     </div>
 
-                    <h2 className="text-4xl font-black text-samasa-black mb-6 leading-tight group-hover:text-samasa-blue transition-colors">
-                      {(project as any).title}
-                    </h2>
-                    <p className="text-slate-500 text-lg mb-10 leading-relaxed font-medium">
-                      {(project as any).description}
-                    </p>
-                  </div>
-
-                  <div className="space-y-10">
-                    <div className="flex flex-wrap gap-3">
-                      {(project as any).objectives?.map((obj: string, i: number) => (
-                        <span
-                          key={i}
-                          className="px-5 py-2 bg-slate-50 border border-slate-100 text-slate-500 text-[10px] font-black rounded-full uppercase tracking-widest"
-                        >
-                          {obj}
+                    <div>
+                      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-6 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] pr-14">
+                        <span className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-2 text-samasa-red" />
+                          {(project as any).timeline}
                         </span>
-                      ))}
-                    </div>
+                        <span className="flex items-center">
+                          <UserCircle className="w-4 h-4 mr-2 text-samasa-blue" />
+                          {(project as any).inCharge}
+                        </span>
 
-                    <div className="pt-10 border-t border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-8">
-                      <div className="flex-grow max-w-xs space-y-3">
-                        <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          <span>Fund Utilization</span>
-                          <span className="text-samasa-blue">
-                            {Math.round(
-                              safePercent(
-                                (project as any).spentAmount,
-                                (project as any).budgetAllocated
-                              )
-                            )}
-                            %
+                        {(project as any).pdfUrl && (
+                          <span className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-50 border border-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                            <FileText className="w-4 h-4" />
+                            PDF
                           </span>
-                        </div>
-                        <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-samasa-blue rounded-full transition-all duration-1000"
-                            style={{
-                              width: `${safePercent(
-                                (project as any).spentAmount,
-                                (project as any).budgetAllocated
-                              )}%`,
-                            }}
-                          />
-                        </div>
+                        )}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => openProjectModal(project)}
-                        className="px-10 py-4 bg-samasa-black text-samasa-yellow font-black rounded-full hover:bg-samasa-blue hover:text-white transition-all text-xs uppercase tracking-widest shadow-xl active:scale-95 whitespace-nowrap"
-                      >
-                        Examine Project
-                      </button>
+                      <h2 className="text-4xl font-black text-samasa-black mb-6 leading-tight group-hover:text-samasa-blue transition-colors">
+                        {(project as any).title}
+                      </h2>
+                      <p className="text-slate-500 text-lg mb-10 leading-relaxed font-medium">
+                        {(project as any).description}
+                      </p>
+                    </div>
+
+                    <div className="space-y-10">
+                      <div className="flex flex-wrap gap-3">
+                        {(project as any).objectives?.map((obj: string, i: number) => (
+                          <span
+                            key={i}
+                            className="px-5 py-2 bg-slate-50 border border-slate-100 text-slate-500 text-[10px] font-black rounded-full uppercase tracking-widest"
+                          >
+                            {obj}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="pt-10 border-t border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-8">
+                        <div className="flex-grow max-w-xs space-y-3">
+                          <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <span>Fund Utilization</span>
+                            <span className="text-samasa-blue">
+                              {Math.round(
+                                safePercent(
+                                  (project as any).spentAmount,
+                                  (project as any).budgetAllocated
+                                )
+                              )}
+                              %
+                            </span>
+                          </div>
+                          <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-samasa-blue rounded-full transition-all duration-1000"
+                              style={{
+                                width: `${safePercent(
+                                  (project as any).spentAmount,
+                                  (project as any).budgetAllocated
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => openProjectModal(project)}
+                          className="px-10 py-4 bg-samasa-black text-samasa-yellow font-black rounded-full hover:bg-samasa-blue hover:text-white transition-all text-xs uppercase tracking-widest shadow-xl active:scale-95 whitespace-nowrap"
+                        >
+                          Examine Project
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              ))}
+
+              {/* Pagination */}
+              <PaginationBar
+                page={projectPage}
+                totalPages={totalProjectPages}
+                onPage={setProjectPage}
+                compact={isEmbed}
+              />
+            </>
           )}
         </div>
       ) : (
@@ -1457,73 +1619,85 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
               </div>
             </div>
           ) : filteredProposals.length > 0 ? (
-            filteredProposals.map((p) => (
-              <div
-                key={(p as any).id}
-                onClick={() => openProposalModal(p)}
-                className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm relative group hover:shadow-2xl transition-all flex flex-col justify-between cursor-pointer"
-              >
-                <div className="absolute top-0 left-0 w-full h-1 bg-samasa-yellow opacity-0 group-hover:opacity-100 transition-opacity" />
+            <>
+              {pagedProposals.map((p) => (
+                <div
+                  key={(p as any).id}
+                  onClick={() => openProposalModal(p)}
+                  className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm relative group hover:shadow-2xl transition-all flex flex-col justify-between cursor-pointer"
+                >
+                  <div className="absolute top-0 left-0 w-full h-1 bg-samasa-yellow opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                <div className="flex items-start justify-between gap-4 mb-6 pr-2">
-                  <span
-                    className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${getProposalStatusStyle(
-                      (p as any).status
-                    )}`}
-                  >
-                    {(p as any).status}
-                  </span>
-
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-bold text-slate-300 uppercase whitespace-nowrap">
-                      {(p as any).dateSubmitted}
+                  <div className="flex items-start justify-between gap-4 mb-6 pr-2">
+                    <span
+                      className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${getProposalStatusStyle(
+                        (p as any).status
+                      )}`}
+                    >
+                      {(p as any).status}
                     </span>
 
-                    {canManage && (
-                      <button
-                        type="button"
-                        onClick={(e) => deleteProposal((p as any).id, e)}
-                        className="p-2 rounded-full bg-slate-50 border border-slate-100 text-slate-300 hover:text-samasa-red hover:bg-white shadow-sm transition-all"
-                        aria-label="Delete proposal"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-bold text-slate-300 uppercase whitespace-nowrap">
+                        {(p as any).dateSubmitted}
+                      </span>
+
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={(e) => deleteProposal((p as any).id, e)}
+                          className="p-2 rounded-full bg-slate-50 border border-slate-100 text-slate-300 hover:text-samasa-red hover:bg-white shadow-sm transition-all"
+                          aria-label="Delete proposal"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-2xl font-black text-samasa-black mb-4 leading-tight group-hover:text-samasa-blue transition-colors">
+                      {(p as any).title}
+                    </h3>
+                    <p className="text-slate-500 font-medium mb-8 leading-relaxed line-clamp-3">
+                      {(p as any).description}
+                    </p>
+
+                    {(p as any).pdfUrl && (
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-50 border border-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                        <FileText className="w-4 h-4" />
+                        PDF Attached
+                      </div>
                     )}
                   </div>
-                </div>
 
-                <div>
-                  <h3 className="text-2xl font-black text-samasa-black mb-4 leading-tight group-hover:text-samasa-blue transition-colors">
-                    {(p as any).title}
-                  </h3>
-                  <p className="text-slate-500 font-medium mb-8 leading-relaxed line-clamp-3">
-                    {(p as any).description}
-                  </p>
-
-                  {(p as any).pdfUrl && (
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-50 border border-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                      <FileText className="w-4 h-4" />
-                      PDF Attached
+                  <div className="pt-8 border-t border-slate-50 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                        <UserCircle className="w-5 h-5" />
+                      </div>
+                      <span className="text-xs font-black text-samasa-black">
+                        {(p as any).proponent}
+                      </span>
                     </div>
-                  )}
-                </div>
 
-                <div className="pt-8 border-t border-slate-50 flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                      <UserCircle className="w-5 h-5" />
+                    <div className="px-6 py-2.5 bg-slate-100 text-slate-500 font-black text-[10px] rounded-full group-hover:bg-samasa-black group-hover:text-white transition-all uppercase tracking-widest">
+                      View Details
                     </div>
-                    <span className="text-xs font-black text-samasa-black">
-                      {(p as any).proponent}
-                    </span>
-                  </div>
-
-                  <div className="px-6 py-2.5 bg-slate-100 text-slate-500 font-black text-[10px] rounded-full group-hover:bg-samasa-black group-hover:text-white transition-all uppercase tracking-widest">
-                    View Details
                   </div>
                 </div>
+              ))}
+
+              {/* Pagination across both columns */}
+              <div className="col-span-2">
+                <PaginationBar
+                  page={proposalPage}
+                  totalPages={totalProposalPages}
+                  onPage={setProposalPage}
+                  compact={isEmbed}
+                />
               </div>
-            ))
+            </>
           ) : (
             <div className="col-span-2 py-24 text-center bg-white rounded-[3rem] border-4 border-dashed border-slate-200">
               <Package className="w-16 h-16 text-slate-100 mx-auto mb-6" />
@@ -2315,7 +2489,7 @@ const LegislativeHub: React.FC<LegislativeHubProps> = ({
       )}
 
       {/* ==============================
-          PROJECT MODAL (FIXED: scrollable)  ✅ fixes "Examine Project"
+          PROJECT MODAL (FIXED: scrollable)
       ============================== */}
       {selectedProject && (
         <div
